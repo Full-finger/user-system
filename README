@@ -1,0 +1,11 @@
+# USER-SYSTEM
+## 快速启动
+```bash
+git clone git@github.com:Full-finger/user-system.git
+cd user-system
+
+./scripts/init.sh #生成随机密钥
+cd deployments && docker compose up -d && cd .. #启动docker
+
+make run #启动服务
+```
