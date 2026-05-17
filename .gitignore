@@ -1,2 +1,5 @@
 /init-scripts
 /postgres-data
+/user-system
+/config.yaml
+/docker-compose.yml
