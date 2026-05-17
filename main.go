@@ -3,41 +3,37 @@ package main
 import (
 	"log"
 
+	"github.com/full-finger/user-system/config"
+	"github.com/full-finger/user-system/controller"
+	"github.com/full-finger/user-system/model"
+	"github.com/full-finger/user-system/router"
+	"github.com/full-finger/user-system/service"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-type User struct {
-	ID       uint   `gorm:"primaryKey"`
-	Username string `gorm:"uniqueIndex;not null"`
-	Password string `gorm:"not null"`
-}
-
 func main() {
-	// 连接数据库
-	dsn := "host=localhost user=myuser password=mypassword dbname=myapp port=5432 sslmode=disable TimeZone=Asia/Shanghai"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	cfg, err := config.Load("config.yaml")
 	if err != nil {
-		log.Fatal("failed to connect database:", err)
+		log.Fatal("加载配置失败:", err)
 	}
 
-	// 自动迁移
-	db.AutoMigrate(&User{})
+	db, err := gorm.Open(postgres.Open(cfg.Database.DSN()), &gorm.Config{})
+	if err != nil {
+		log.Fatal("连接数据库失败:", err)
+	}
+	db.AutoMigrate(&model.User{})
 
-	// 创建一个新的Echo实例
+	userSvc := service.NewUserService(db, &cfg.JWT)
+	userCtrl := controller.NewUserController(userSvc)
+
 	e := echo.New()
-
-	// 日志中间件
 	e.Use(middleware.RequestLogger())
-
-	// 恢复中间件
 	e.Use(middleware.Recover())
 
-	e.GET("/hello", func(c echo.Context) error {
-		return c.String(200, "Hello, World!")
-	})
+	router.Setup(e, userCtrl, cfg)
 
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(cfg.Server.Port))
 }
