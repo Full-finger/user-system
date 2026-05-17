@@ -23,15 +23,15 @@ sed \
     -e "s|CHANGE_ME_DB_USER|$DB_USER|g" \
     -e "s|CHANGE_ME_DB_PASSWORD|$DB_PASSWORD|g" \
     -e "s|CHANGE_ME_DB_NAME|$DB_NAME|g" \
-    "$SCRIPT_DIR/config.yaml.example" > "$SCRIPT_DIR/config.yaml"
+    "$SCRIPT_DIR/../configs/config.yaml.example" > "$SCRIPT_DIR/../configs/config.yaml"
 
 sed \
     -e "s|CHANGE_ME_DB_USER|$DB_USER|g" \
     -e "s|CHANGE_ME_DB_PASSWORD|$DB_PASSWORD|g" \
     -e "s|CHANGE_ME_DB_NAME|$DB_NAME|g" \
-    "$SCRIPT_DIR/docker-compose.yml.example" > "$SCRIPT_DIR/docker-compose.yml"
+    "$SCRIPT_DIR/../deployments/docker-compose.yml.example" > "$SCRIPT_DIR/../deployments/docker-compose.yml"
 
-sed -i.bak "s|CHANGE_ME_JWT_SECRET|$JWT_SECRET|g" "$SCRIPT_DIR/config.yaml"
-rm -f "$SCRIPT_DIR/config.yaml.bak"
+sed -i.bak "s|CHANGE_ME_JWT_SECRET|$JWT_SECRET|g" "$SCRIPT_DIR/../configs/config.yaml"
+rm -f "$SCRIPT_DIR/../configs/config.yaml.bak"
 
-echo "==> 配置文件已生成：config.yaml, docker-compose.yml"
+echo "==> 配置文件已生成：configs/config.yaml, deployments/docker-compose.yml"

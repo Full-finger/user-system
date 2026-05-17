@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/full-finger/user-system/config"
-	"github.com/full-finger/user-system/model"
+	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/internal/model"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"

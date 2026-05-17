@@ -3,11 +3,11 @@ package main
 import (
 	"log"
 
-	"github.com/full-finger/user-system/config"
-	"github.com/full-finger/user-system/controller"
-	"github.com/full-finger/user-system/model"
-	"github.com/full-finger/user-system/router"
-	"github.com/full-finger/user-system/service"
+	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/internal/controller"
+	"github.com/full-finger/user-system/internal/model"
+	"github.com/full-finger/user-system/internal/router"
+	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/postgres"
@@ -15,7 +15,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load("config.yaml")
+	cfg, err := config.Load("configs/config.yaml")
 	if err != nil {
 		log.Fatal("加载配置失败:", err)
 	}

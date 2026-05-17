@@ -1,9 +1,9 @@
 package router
 
 import (
-	"github.com/full-finger/user-system/config"
-	"github.com/full-finger/user-system/controller"
-	"github.com/full-finger/user-system/middleware"
+	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/internal/controller"
+	"github.com/full-finger/user-system/internal/middleware"
 	"github.com/labstack/echo/v4"
 )
 

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/full-finger/user-system/config"
+	"github.com/full-finger/user-system/internal/config"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )

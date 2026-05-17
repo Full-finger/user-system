@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/full-finger/user-system/model"
-	"github.com/full-finger/user-system/service"
+	"github.com/full-finger/user-system/internal/model"
+	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
