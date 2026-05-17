@@ -8,6 +8,7 @@ import (
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/router"
 	"github.com/full-finger/user-system/internal/service"
+	customValidator "github.com/full-finger/user-system/pkg"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/postgres"
@@ -30,6 +31,7 @@ func main() {
 	userCtrl := controller.NewUserController(userSvc)
 
 	e := echo.New()
+	e.Validator = customValidator.NewValidator()
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 

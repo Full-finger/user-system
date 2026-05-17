@@ -38,6 +38,9 @@ func (ctrl *UserController) Register(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
 	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
+	}
 	user, err := ctrl.svc.Register(&req)
 	if err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
@@ -49,6 +52,9 @@ func (ctrl *UserController) Login(c echo.Context) error {
 	var req model.LoginRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
 	}
 	token, err := ctrl.svc.Login(&req)
 	if err != nil {
@@ -71,6 +77,9 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	var req model.UpdateRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
 	}
 	// 普通用户不允许自己改角色
 	req.Role = ""
@@ -109,6 +118,9 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 	var req model.UpdateRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
 	}
 	user, err := ctrl.svc.UpdateUser(uint(id), &req)
 	if err != nil {
