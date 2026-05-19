@@ -20,19 +20,19 @@ func NewUserService(db *gorm.DB, cfg *config.JWTConfig) *UserService {
 	return &UserService{db: db, cfg: cfg}
 }
 
-func (s *UserService) Register(req *model.RegisterRequest) (*model.User, error) {
+func (s *UserService) Register(in RegisterInput) (*model.User, error) {
 	var exist model.User
-	if err := s.db.Where("username = ?", req.Username).First(&exist).Error; err == nil {
+	if err := s.db.Where("username = ?", in.Username).First(&exist).Error; err == nil {
 		return nil, errors.New("用户名已存在")
 	}
 
-	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
 	user := &model.User{
-		Username: req.Username,
+		Username: in.Username,
 		Password: string(hashed),
 		Role:     "user",
 	}
@@ -42,12 +42,12 @@ func (s *UserService) Register(req *model.RegisterRequest) (*model.User, error) 
 	return user, nil
 }
 
-func (s *UserService) Login(req *model.LoginRequest) (string, error) {
+func (s *UserService) Login(in LoginInput) (string, error) {
 	var user model.User
-	if err := s.db.Where("username = ?", req.Username).First(&user).Error; err != nil {
+	if err := s.db.Where("username = ?", in.Username).First(&user).Error; err != nil {
 		return "", errors.New("用户名或密码错误")
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
 		return "", errors.New("用户名或密码错误")
 	}
 
@@ -69,12 +69,12 @@ func (s *UserService) GetProfile(userID uint) (*model.User, error) {
 	return &user, nil
 }
 
-func (s *UserService) UpdateProfile(userID uint, req *model.UpdateRequest) (*model.User, error) {
+func (s *UserService) UpdateProfile(userID uint, in UpdateInput) (*model.User, error) {
 	user, err := s.GetProfile(userID)
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(user, req)
+	return s.updateUser(user, in)
 }
 
 func (s *UserService) ListUsers() ([]model.User, error) {
@@ -89,29 +89,29 @@ func (s *UserService) GetUserByID(id uint) (*model.User, error) {
 	return s.GetProfile(id)
 }
 
-func (s *UserService) UpdateUser(id uint, req *model.UpdateRequest) (*model.User, error) {
+func (s *UserService) UpdateUser(id uint, in UpdateInput) (*model.User, error) {
 	user, err := s.GetProfile(id)
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(user, req)
+	return s.updateUser(user, in)
 }
 
 func (s *UserService) DeleteUser(id uint) error {
 	return s.db.Delete(&model.User{}, id).Error
 }
 
-func (s *UserService) updateUser(user *model.User, req *model.UpdateRequest) (*model.User, error) {
+func (s *UserService) updateUser(user *model.User, in UpdateInput) (*model.User, error) {
 	updates := map[string]interface{}{}
-	if req.Password != "" {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if in.Password != "" {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, err
 		}
 		updates["password"] = string(hashed)
 	}
-	if req.Role != "" {
-		updates["role"] = req.Role
+	if in.Role != "" {
+		updates["role"] = in.Role
 	}
 	if len(updates) == 0 {
 		return user, nil

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/full-finger/user-system/internal/model"
+	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -34,14 +34,17 @@ func fail(c echo.Context, code int, msg string) error {
 }
 
 func (ctrl *UserController) Register(c echo.Context) error {
-	var req model.RegisterRequest
+	var req param.RegisterRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
 	}
 	if err := c.Validate(&req); err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
-	user, err := ctrl.svc.Register(&req)
+	user, err := ctrl.svc.Register(service.RegisterInput{
+		Username: req.Username,
+		Password: req.Password,
+	})
 	if err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
@@ -49,18 +52,21 @@ func (ctrl *UserController) Register(c echo.Context) error {
 }
 
 func (ctrl *UserController) Login(c echo.Context) error {
-	var req model.LoginRequest
+	var req param.LoginRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
 	}
 	if err := c.Validate(&req); err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
-	token, err := ctrl.svc.Login(&req)
+	token, err := ctrl.svc.Login(service.LoginInput{
+		Username: req.Username,
+		Password: req.Password,
+	})
 	if err != nil {
 		return fail(c, http.StatusUnauthorized, err.Error())
 	}
-	return success(c, model.LoginResponse{Token: token})
+	return success(c, param.LoginResponse{Token: token})
 }
 
 func (ctrl *UserController) GetProfile(c echo.Context) error {
@@ -74,7 +80,7 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	userID := c.Get("user_id").(uint)
-	var req model.UpdateRequest
+	var req param.UpdateRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
 	}
@@ -83,7 +89,10 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	}
 	// 普通用户不允许自己改角色
 	req.Role = ""
-	user, err := ctrl.svc.UpdateProfile(userID, &req)
+	user, err := ctrl.svc.UpdateProfile(userID, service.UpdateInput{
+		Password: req.Password,
+		Role:     req.Role,
+	})
 	if err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
@@ -115,14 +124,17 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 	if err != nil {
 		return fail(c, http.StatusBadRequest, "无效的ID")
 	}
-	var req model.UpdateRequest
+	var req param.UpdateRequest
 	if err := c.Bind(&req); err != nil {
 		return fail(c, http.StatusBadRequest, "参数错误")
 	}
 	if err := c.Validate(&req); err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
-	user, err := ctrl.svc.UpdateUser(uint(id), &req)
+	user, err := ctrl.svc.UpdateUser(uint(id), service.UpdateInput{
+		Password: req.Password,
+		Role:     req.Role,
+	})
 	if err != nil {
 		return fail(c, http.StatusBadRequest, err.Error())
 	}
