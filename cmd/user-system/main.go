@@ -62,6 +62,7 @@ func main() {
 			c.JSON(appErr.Code, map[string]any{"code": appErr.Code, "message": appErr.Message, "data": nil})
 			return
 		}
+		log.Printf("[ERROR] %v", err)
 		c.JSON(500, map[string]any{"code": 500, "message": "内部错误", "data": nil})
 	}
 	e.Use(middleware.CORS())
