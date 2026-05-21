@@ -61,6 +61,7 @@ type CaptchaConfig struct {
 	Type         string        `yaml:"type"`
 	Expire       time.Duration `yaml:"expire"`
 	SendInterval time.Duration `yaml:"send_interval"`
+	MaxAttempts  int           `yaml:"max_attempts"`
 }
 
 func Load(path string) (*Config, error) {

@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type User struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
@@ -9,5 +13,6 @@ type User struct {
 	Email     *string   `json:"email" gorm:"uniqueIndex;size:100"`
 	Role      string    `json:"role" gorm:"default:user;size:20"`
 	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }

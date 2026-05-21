@@ -1,4 +1,4 @@
-package pkg
+package email
 
 import (
 	"crypto/tls"
@@ -7,7 +7,7 @@ import (
 	"net/smtp"
 )
 
-type EmailSender struct {
+type Sender struct {
 	host     string
 	port     int
 	username string
@@ -16,8 +16,8 @@ type EmailSender struct {
 	tls      bool
 }
 
-func NewEmailSender(host string, port int, username, password, from string, tls bool) *EmailSender {
-	return &EmailSender{
+func NewSender(host string, port int, username, password, from string, tls bool) *Sender {
+	return &Sender{
 		host:     host,
 		port:     port,
 		username: username,
@@ -27,7 +27,7 @@ func NewEmailSender(host string, port int, username, password, from string, tls 
 	}
 }
 
-func (s *EmailSender) Send(to, subject, body string) error {
+func (s *Sender) Send(to, subject, body string) error {
 	addr := net.JoinHostPort(s.host, fmt.Sprintf("%d", s.port))
 	auth := smtp.PlainAuth("", s.username, s.password, s.host)
 

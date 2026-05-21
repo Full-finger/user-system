@@ -21,7 +21,7 @@ jwt:
 
 smtp:
   host: "smtp.example.com"
-  port: 587
+  port: 465
   username: "your-email@example.com"
   password: "CHANGE_ME_SMTP_PASSWORD"
   from: "your-email@example.com"
@@ -32,3 +32,4 @@ captcha:
   type: "number"
   expire: 5m
   send_interval: 1m
+  max_attempts: 0
