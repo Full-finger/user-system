@@ -1,6 +1,7 @@
 /bin
 /deployments/init-scripts
 /deployments/postgres-data
+/deployments/redis-data
 /user-system
 /configs/config.yaml
 /deployments/docker-compose.yml
