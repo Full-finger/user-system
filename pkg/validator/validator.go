@@ -1,4 +1,4 @@
-package pkg
+package validator
 
 import (
 	"strings"
@@ -10,7 +10,7 @@ type CustomValidator struct {
 	validator *validator.Validate
 }
 
-func NewValidator() *CustomValidator {
+func New() *CustomValidator {
 	return &CustomValidator{
 		validator: validator.New(),
 	}
