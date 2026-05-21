@@ -10,11 +10,12 @@ import (
 )
 
 type UserController struct {
-	svc *service.UserService
+	svc        *service.UserService
+	captchaSvc *service.CaptchaService
 }
 
-func NewUserController(svc *service.UserService) *UserController {
-	return &UserController{svc: svc}
+func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService) *UserController {
+	return &UserController{svc: svc, captchaSvc: captchaSvc}
 }
 
 func success(c echo.Context, data any) error {
@@ -148,6 +149,56 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 	}
 	if err := ctrl.svc.DeleteUser(uint(id)); err != nil {
 		return fail(c, http.StatusInternalServerError, "删除失败")
+	}
+	return success(c, nil)
+}
+
+func (ctrl *UserController) SendCode(c echo.Context) error {
+	var req param.SendCodeRequest
+	if err := c.Bind(&req); err != nil {
+		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
+	}
+	if err := ctrl.captchaSvc.SendCode(req.Email); err != nil {
+		return fail(c, http.StatusTooManyRequests, err.Error())
+	}
+	return success(c, nil)
+}
+
+func (ctrl *UserController) CodeLogin(c echo.Context) error {
+	var req param.CodeLoginRequest
+	if err := c.Bind(&req); err != nil {
+		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
+	}
+	if err := ctrl.captchaSvc.VerifyCode(req.Email, req.Code); err != nil {
+		return fail(c, http.StatusUnauthorized, err.Error())
+	}
+	token, err := ctrl.svc.LoginByEmail(req.Email)
+	if err != nil {
+		return fail(c, http.StatusUnauthorized, err.Error())
+	}
+	return success(c, param.LoginResponse{Token: token})
+}
+
+func (ctrl *UserController) BindEmail(c echo.Context) error {
+	userID := c.Get("user_id").(uint)
+	var req param.BindEmailRequest
+	if err := c.Bind(&req); err != nil {
+		return fail(c, http.StatusBadRequest, "参数错误")
+	}
+	if err := c.Validate(&req); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
+	}
+	if err := ctrl.captchaSvc.VerifyCode(req.Email, req.Code); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
+	}
+	if err := ctrl.svc.BindEmail(userID, req.Email); err != nil {
+		return fail(c, http.StatusBadRequest, err.Error())
 	}
 	return success(c, nil)
 }

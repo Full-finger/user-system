@@ -13,6 +13,8 @@ func Setup(e *echo.Echo, ctrl *controller.UserController, cfg *config.Config) {
 	// 公开路由
 	api.POST("/register", ctrl.Register)
 	api.POST("/login", ctrl.Login)
+	api.POST("/send-code", ctrl.SendCode)
+	api.POST("/code-login", ctrl.CodeLogin)
 
 	// 需要鉴权的路由
 	auth := api.Group("")
@@ -20,6 +22,7 @@ func Setup(e *echo.Echo, ctrl *controller.UserController, cfg *config.Config) {
 
 	auth.GET("/profile", ctrl.GetProfile)
 	auth.PUT("/profile", ctrl.UpdateProfile)
+	auth.PUT("/profile/email", ctrl.BindEmail)
 
 	// 管理员路由
 	admin := auth.Group("")

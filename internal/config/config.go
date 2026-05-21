@@ -11,7 +11,10 @@ import (
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Database DatabaseConfig `yaml:"database"`
+	Redis    RedisConfig    `yaml:"redis"`
 	JWT      JWTConfig      `yaml:"jwt"`
+	SMTP     SMTPConfig     `yaml:"smtp"`
+	Captcha  CaptchaConfig  `yaml:"captcha"`
 }
 
 type ServerConfig struct {
@@ -33,9 +36,31 @@ func (d *DatabaseConfig) DSN() string {
 		d.Host, d.User, d.Password, d.DBName, d.Port, d.SSLMode, d.Timezone)
 }
 
+type RedisConfig struct {
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+}
+
 type JWTConfig struct {
 	Secret string        `yaml:"secret"`
 	Expire time.Duration `yaml:"expire"`
+}
+
+type SMTPConfig struct {
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	From     string `yaml:"from"`
+	TLS      bool   `yaml:"tls"`
+}
+
+type CaptchaConfig struct {
+	Length       int           `yaml:"length"`
+	Type         string        `yaml:"type"`
+	Expire       time.Duration `yaml:"expire"`
+	SendInterval time.Duration `yaml:"send_interval"`
 }
 
 func Load(path string) (*Config, error) {

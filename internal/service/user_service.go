@@ -44,13 +44,38 @@ func (s *UserService) Register(in RegisterInput) (*model.User, error) {
 
 func (s *UserService) Login(in LoginInput) (string, error) {
 	var user model.User
-	if err := s.db.Where("username = ?", in.Username).First(&user).Error; err != nil {
+	// 支持用户名或邮箱登录
+	err := s.db.Where("username = ?", in.Username).First(&user).Error
+	if err != nil {
+		err = s.db.Where("email = ?", in.Username).First(&user).Error
+	}
+	if err != nil {
 		return "", errors.New("用户名或密码错误")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
 		return "", errors.New("用户名或密码错误")
 	}
 
+	return s.generateToken(&user)
+}
+
+func (s *UserService) LoginByEmail(email string) (string, error) {
+	var user model.User
+	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
+		return "", errors.New("用户不存在")
+	}
+	return s.generateToken(&user)
+}
+
+func (s *UserService) BindEmail(userID uint, email string) error {
+	var exist model.User
+	if err := s.db.Where("email = ?", email).First(&exist).Error; err == nil {
+		return errors.New("该邮箱已被绑定")
+	}
+	return s.db.Model(&model.User{}).Where("id = ?", userID).Update("email", email).Error
+}
+
+func (s *UserService) generateToken(user *model.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,
 		"username": user.Username,
