@@ -2,6 +2,8 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -20,7 +22,7 @@ type LogConfig struct {
 func New(cfg LogConfig) *zap.Logger {
 	level := parseLevel(cfg.Level)
 
-	encoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
+	baseEncoderCfg := zapcore.EncoderConfig{
 		TimeKey:        "time",
 		LevelKey:       "level",
 		NameKey:        "logger",
@@ -28,28 +30,21 @@ func New(cfg LogConfig) *zap.Logger {
 		MessageKey:     "msg",
 		StacktraceKey:  "stacktrace",
 		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.CapitalColorLevelEncoder,
 		EncodeTime:     zapcore.ISO8601TimeEncoder,
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeCaller:   zapcore.ShortCallerEncoder,
-	})
+	}
 
-	consoleCore := zapcore.NewCore(encoder, zapcore.AddSync(zapcore.Lock(os.Stdout)), level)
+	consoleCfg := baseEncoderCfg
+	consoleCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(consoleCfg), zapcore.AddSync(zapcore.Lock(os.Stdout)), level)
 
-	fileEncoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-		TimeKey:        "time",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
-	})
+	fileCfg := baseEncoderCfg
+	fileCfg.EncodeLevel = zapcore.LowercaseLevelEncoder
 
+	if cfg.Filename != "" {
+		_ = os.MkdirAll(filepath.Dir(cfg.Filename), 0755)
+	}
 	writer := &lumberjack.Logger{
 		Filename:   cfg.Filename,
 		MaxSize:    cfg.MaxSize,
@@ -57,14 +52,14 @@ func New(cfg LogConfig) *zap.Logger {
 		MaxAge:     cfg.MaxAge,
 		Compress:   cfg.Compress,
 	}
-	fileCore := zapcore.NewCore(fileEncoder, zapcore.AddSync(writer), level)
+	fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(fileCfg), zapcore.AddSync(writer), level)
 
 	core := zapcore.NewTee(consoleCore, fileCore)
 	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 }
 
 func parseLevel(s string) zapcore.Level {
-	switch s {
+	switch strings.ToLower(s) {
 	case "debug":
 		return zapcore.DebugLevel
 	case "warn":
