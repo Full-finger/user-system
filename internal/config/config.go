@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/full-finger/user-system/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -15,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	SMTP     SMTPConfig     `yaml:"smtp"`
 	Captcha  CaptchaConfig  `yaml:"captcha"`
+	Log      logger.LogConfig `yaml:"log"`
 }
 
 type ServerConfig struct {

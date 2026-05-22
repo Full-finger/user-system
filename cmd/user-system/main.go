@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"os"
 	"os/signal"
 	"time"
@@ -15,10 +14,12 @@ import (
 	"github.com/full-finger/user-system/internal/router"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/full-finger/user-system/pkg/email"
+	applogger "github.com/full-finger/user-system/pkg/logger"
 	"github.com/full-finger/user-system/pkg/validator"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -26,12 +27,15 @@ import (
 func main() {
 	cfg, err := config.Load("configs/config.yaml")
 	if err != nil {
-		log.Fatal("加载配置失败:", err)
+		panic("加载配置失败: " + err.Error())
 	}
+
+	log := applogger.New(cfg.Log)
+	defer log.Sync()
 
 	db, err := gorm.Open(postgres.Open(cfg.Database.DSN()), &gorm.Config{})
 	if err != nil {
-		log.Fatal("连接数据库失败:", err)
+		log.Fatal("连接数据库失败", zap.Error(err))
 	}
 	db.AutoMigrate(&model.User{})
 
@@ -41,7 +45,7 @@ func main() {
 		DB:       cfg.Redis.DB,
 	})
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		log.Fatal("连接 Redis 失败:", err)
+		log.Fatal("连接 Redis 失败", zap.Error(err))
 	}
 
 	mailer := email.NewSender(
@@ -62,19 +66,18 @@ func main() {
 			c.JSON(appErr.Code, map[string]any{"code": appErr.Code, "message": appErr.Message, "data": nil})
 			return
 		}
-		log.Printf("[ERROR] %v", err)
+		log.Error("未处理错误", zap.Error(err), zap.String("path", c.Request().URL.Path))
 		c.JSON(500, map[string]any{"code": 500, "message": "内部错误", "data": nil})
 	}
 	e.Use(middleware.CORS())
-	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
 	router.Setup(e, userCtrl, cfg)
 
-	// Graceful shutdown
+	log.Info("服务启动", zap.String("port", cfg.Server.Port))
 	go func() {
 		if err := e.Start(cfg.Server.Port); err != nil {
-			e.Logger.Info("shutting down:", err)
+			log.Info("服务关闭", zap.Error(err))
 		}
 	}()
 	quit := make(chan os.Signal, 1)
@@ -83,6 +86,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := e.Shutdown(ctx); err != nil {
-		e.Logger.Fatal(err)
+		log.Fatal("服务关闭失败", zap.Error(err))
 	}
+	log.Info("服务已停止")
 }

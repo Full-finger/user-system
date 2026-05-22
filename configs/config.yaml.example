@@ -33,3 +33,11 @@ captcha:
   expire: 5m
   send_interval: 1m
   max_attempts: 0
+
+log:
+  level: "info"
+  filename: "logs/app.log"
+  max_size: 100
+  max_backups: 30
+  max_age: 7
+  compress: true
