@@ -35,7 +35,9 @@ func main() {
 
 	db, err := gorm.Open(postgres.Open(cfg.Database.DSN()), &gorm.Config{})
 	if err != nil {
-		log.Fatal("连接数据库失败", zap.Error(err))
+		log.Error("连接数据库失败", zap.Error(err))
+		log.Sync()
+		os.Exit(1)
 	}
 	db.AutoMigrate(&model.User{})
 
@@ -45,7 +47,9 @@ func main() {
 		DB:       cfg.Redis.DB,
 	})
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		log.Fatal("连接 Redis 失败", zap.Error(err))
+		log.Error("连接 Redis 失败", zap.Error(err))
+		log.Sync()
+		os.Exit(1)
 	}
 
 	mailer := email.NewSender(
@@ -86,7 +90,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := e.Shutdown(ctx); err != nil {
-		log.Fatal("服务关闭失败", zap.Error(err))
+		log.Error("服务关闭失败", zap.Error(err))
 	}
 	log.Info("服务已停止")
 }
