@@ -16,7 +16,7 @@ func New() *CustomValidator {
 	}
 }
 
-func (cv *CustomValidator) Validate(i interface{}) error {
+func (cv *CustomValidator) Validate(i any) error {
 	if err := cv.validator.Struct(i); err != nil {
 		// 将验证错误转换为友好的中文提示
 		var errMessages []string
