@@ -55,7 +55,7 @@ func (s *UserService) Login(in LoginInput) (string, error) {
 func (s *UserService) LoginByEmail(email string) (string, error) {
 	var user model.User
 	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
-		return "", apperror.Unauthorized("用户不存在")
+		return "", apperror.Unauthorized("验证码无效或用户不存在")
 	}
 	return s.generateToken(&user)
 }
@@ -90,7 +90,9 @@ func (s *UserService) UpdateProfile(userID uint, in UpdateInput) (*model.User, e
 func (s *UserService) ListUsers(page, pageSize int) ([]model.User, int64, error) {
 	var users []model.User
 	var total int64
-	s.db.Model(&model.User{}).Count(&total)
+	if err := s.db.Model(&model.User{}).Count(&total).Error; err != nil {
+		return nil, 0, apperror.Internal("查询失败")
+	}
 	offset := (page - 1) * pageSize
 	if err := s.db.Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
 		return nil, 0, apperror.Internal("查询失败")
