@@ -77,7 +77,7 @@ func (s *CaptchaService) VerifyCode(email, code string) error {
 			s.rdb.Incr(ctx, attemptsKey)
 			s.rdb.Expire(ctx, attemptsKey, s.cfg.Expire)
 		}
-		return apperror.Unauthorized("验证码错误")
+		return apperror.BadRequest("验证码错误")
 	}
 
 	delKeys := []string{codeKey}
@@ -106,7 +106,10 @@ func (s *CaptchaService) generateCode() string {
 
 	result := make([]byte, length)
 	for i := 0; i < length; i++ {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			return ""
+		}
 		result[i] = chars[n.Int64()]
 	}
 	return string(result)
