@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -25,7 +27,10 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load("configs/config.yaml")
+	configPath := flag.String("config", "configs/config.yaml", "配置文件路径")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
 	if err != nil {
 		panic("加载配置失败: " + err.Error())
 	}
@@ -73,7 +78,12 @@ func main() {
 		log.Error("未处理错误", zap.Error(err), zap.String("path", c.Request().URL.Path))
 		c.JSON(500, map[string]any{"code": 500, "message": "内部错误", "data": nil})
 	}
-	e.Use(middleware.CORS())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+	}))
+	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
 	router.Setup(e, userCtrl, cfg)
