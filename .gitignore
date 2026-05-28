@@ -5,3 +5,4 @@
 /user-system
 /configs/config.yaml
 /deployments/docker-compose.yml
+.agent
