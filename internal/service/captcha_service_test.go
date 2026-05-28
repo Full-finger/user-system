@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/full-finger/user-system/internal/config"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/full-finger/user-system/internal/config"
 	"github.com/redis/go-redis/v9"
 )
 

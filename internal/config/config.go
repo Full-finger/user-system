@@ -10,12 +10,12 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig   `yaml:"server"`
-	Database DatabaseConfig `yaml:"database"`
-	Redis    RedisConfig    `yaml:"redis"`
-	JWT      JWTConfig      `yaml:"jwt"`
-	SMTP     SMTPConfig     `yaml:"smtp"`
-	Captcha  CaptchaConfig  `yaml:"captcha"`
+	Server   ServerConfig     `yaml:"server"`
+	Database DatabaseConfig   `yaml:"database"`
+	Redis    RedisConfig      `yaml:"redis"`
+	JWT      JWTConfig        `yaml:"jwt"`
+	SMTP     SMTPConfig       `yaml:"smtp"`
+	Captcha  CaptchaConfig    `yaml:"captcha"`
 	Log      logger.LogConfig `yaml:"log"`
 }
 
