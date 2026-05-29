@@ -223,12 +223,10 @@ onMounted(() => {
 }
 
 .topbar__inner {
-  max-width: 1280px;
-  margin: 0 auto;
   height: 100%;
   display: flex;
   align-items: center;
-  padding: 0 20px;
+  padding: 0 20px 0 calc(var(--sidebar-w) + 20px);
   gap: 16px;
 }
 
@@ -740,6 +738,10 @@ onMounted(() => {
 }
 
 @media (max-width: 960px) {
+  .topbar__inner {
+    padding-left: 20px;
+  }
+
   .topbar__menu-btn {
     display: flex;
   }
