@@ -141,12 +141,27 @@ async function handleLogin() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-muted);
+  border-radius: var(--radius-m);
+  transition: background var(--duration-medium-2) var(--ease-standard);
+}
+
+.auth-form__group:focus-within {
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .auth-form__label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.auth-form__group .input:focus {
+  box-shadow: none;
 }
 
 .auth-form__error {
@@ -161,11 +176,6 @@ async function handleLogin() {
   width: 100%;
   height: 42px;
   margin-top: 4px;
-}
-
-.auth-form__submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .auth-card__footer {

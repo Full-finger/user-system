@@ -221,12 +221,27 @@ function toggleTheme() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 10px 12px;
+  background: var(--bg-muted);
+  border-radius: var(--radius-m);
+  transition: background var(--duration-medium-2) var(--ease-standard);
+}
+
+.settings__field:focus-within {
+  background: var(--bg-card);
+  box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
 .settings__label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.settings__field .input:focus {
+  box-shadow: none;
 }
 
 .settings__code-row {
