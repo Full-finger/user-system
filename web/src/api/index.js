@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 
 const api = axios.create({
   baseURL: '/api',
@@ -21,6 +22,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res.data,
   (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token')
+      router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      return Promise.reject(new Error('登录已过期，请重新登录'))
+    }
     const data = err.response?.data
     const message = data?.message || '网络错误，请稍后重试'
     return Promise.reject(new Error(message))
@@ -44,7 +50,7 @@ export function sendCode(data) {
   return api.post('/send-code', data)
 }
 
-export function codeLogin(data) {
+export function loginByCode(data) {
   return api.post('/code-login', data)
 }
 

@@ -73,6 +73,9 @@ router.beforeEach((to, from, next) => {
   if (to.meta.auth && !auth.isLoggedIn) {
     return next({ name: 'Login', query: { redirect: to.fullPath } })
   }
+  if (to.meta.admin && !auth.isAdmin) {
+    return next({ name: 'Home' })
+  }
   if (to.meta.guest && auth.isLoggedIn) {
     return next({ name: 'Home' })
   }
