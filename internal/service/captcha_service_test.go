@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 type mockMailer struct {
@@ -29,11 +31,12 @@ func setupCaptchaTest(t *testing.T, cfg *config.CaptchaConfig) (*CaptchaService,
 	mr := miniredis.RunT(t)
 	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	mailer := &mockMailer{}
-	svc := NewCaptchaService(rdb, cfg, mailer)
+	svc := NewCaptchaService(rdb, cfg, mailer, zap.NewNop())
 	return svc, mr, mailer
 }
 
 func TestCaptchaService_SendCode(t *testing.T) {
+	ctx := context.Background()
 	cfg := &config.CaptchaConfig{
 		Length:       6,
 		Type:         "number",
@@ -44,7 +47,7 @@ func TestCaptchaService_SendCode(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		svc, mr, mailer := setupCaptchaTest(t, cfg)
-		err := svc.SendCode("test@example.com")
+		err := svc.SendCode(ctx, "test@example.com")
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -59,8 +62,8 @@ func TestCaptchaService_SendCode(t *testing.T) {
 
 	t.Run("rate limited", func(t *testing.T) {
 		svc, _, _ := setupCaptchaTest(t, cfg)
-		_ = svc.SendCode("test@example.com")
-		err := svc.SendCode("test@example.com")
+		_ = svc.SendCode(ctx, "test@example.com")
+		err := svc.SendCode(ctx, "test@example.com")
 		if err == nil {
 			t.Fatal("expected rate limit error")
 		}
@@ -69,7 +72,7 @@ func TestCaptchaService_SendCode(t *testing.T) {
 	t.Run("email failure cleans up", func(t *testing.T) {
 		svc, mr, mailer := setupCaptchaTest(t, cfg)
 		mailer.err = fmt.Errorf("smtp error")
-		err := svc.SendCode("test@example.com")
+		err := svc.SendCode(ctx, "test@example.com")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -80,6 +83,7 @@ func TestCaptchaService_SendCode(t *testing.T) {
 }
 
 func TestCaptchaService_VerifyCode(t *testing.T) {
+	ctx := context.Background()
 	cfg := &config.CaptchaConfig{
 		Length:       6,
 		Type:         "number",
@@ -91,7 +95,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		svc, mr, _ := setupCaptchaTest(t, cfg)
 		mr.Set("captcha:code:test@example.com", "123456")
-		err := svc.VerifyCode("test@example.com", "123456")
+		err := svc.VerifyCode(ctx, "test@example.com", "123456")
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -102,7 +106,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 
 	t.Run("expired", func(t *testing.T) {
 		svc, _, _ := setupCaptchaTest(t, cfg)
-		err := svc.VerifyCode("test@example.com", "123456")
+		err := svc.VerifyCode(ctx, "test@example.com", "123456")
 		if err == nil {
 			t.Fatal("expected error for expired code")
 		}
@@ -111,7 +115,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 	t.Run("wrong code increments attempts", func(t *testing.T) {
 		svc, mr, _ := setupCaptchaTest(t, cfg)
 		mr.Set("captcha:code:test@example.com", "123456")
-		err := svc.VerifyCode("test@example.com", "654321")
+		err := svc.VerifyCode(ctx, "test@example.com", "654321")
 		if err == nil {
 			t.Fatal("expected error for wrong code")
 		}
@@ -125,7 +129,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 		svc, mr, _ := setupCaptchaTest(t, cfg)
 		mr.Set("captcha:code:test@example.com", "123456")
 		mr.Set("captcha:attempts:test@example.com", "2")
-		err := svc.VerifyCode("test@example.com", "wrong")
+		err := svc.VerifyCode(ctx, "test@example.com", "wrong")
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -145,7 +149,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 		svc, mr, _ := setupCaptchaTest(t, noLimitCfg)
 		mr.Set("captcha:code:test@example.com", "123456")
 		for i := 0; i < 10; i++ {
-			_ = svc.VerifyCode("test@example.com", "wrong")
+			_ = svc.VerifyCode(ctx, "test@example.com", "wrong")
 		}
 		if _, e := mr.Get("captcha:code:test@example.com"); e != nil {
 			t.Error("expected code to still exist when no limit")
