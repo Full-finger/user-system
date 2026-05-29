@@ -6,3 +6,4 @@
 /configs/config.yaml
 /deployments/docker-compose.yml
 .agent
+/logs
