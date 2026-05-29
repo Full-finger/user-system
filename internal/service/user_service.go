@@ -21,6 +21,17 @@ func NewUserService(db *gorm.DB, cfg *config.JWTConfig) *UserService {
 	return &UserService{db: db, cfg: cfg}
 }
 
+func (s *UserService) CheckUsername(username string) error {
+	var count int64
+	if err := s.db.Model(&model.User{}).Where("username = ?", username).Count(&count).Error; err != nil {
+		return apperror.Internal("查询失败")
+	}
+	if count > 0 {
+		return apperror.BadRequest("用户名已被占用")
+	}
+	return nil
+}
+
 func (s *UserService) Register(in RegisterInput) (*model.User, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -32,9 +43,12 @@ func (s *UserService) Register(in RegisterInput) (*model.User, error) {
 		Password: string(hashed),
 		Role:     "user",
 	}
+	if in.Email != "" {
+		user.Email = &in.Email
+	}
 	if err := s.db.Create(user).Error; err != nil {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
-			return nil, apperror.BadRequest("用户名已存在")
+			return nil, apperror.BadRequest("用户名或邮箱已存在")
 		}
 		return nil, apperror.Internal("注册失败")
 	}

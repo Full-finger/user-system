@@ -35,14 +35,32 @@ func bindAndValidate(c echo.Context, req any) error {
 	return nil
 }
 
+func (ctrl *UserController) CheckUsername(c echo.Context) error {
+	username := c.QueryParam("username")
+	if username == "" {
+		return apperror.BadRequest("请输入用户名")
+	}
+	if len(username) < 3 {
+		return apperror.BadRequest("用户名至少 3 个字符")
+	}
+	if err := ctrl.svc.CheckUsername(username); err != nil {
+		return err
+	}
+	return success(c, map[string]bool{"available": true})
+}
+
 func (ctrl *UserController) Register(c echo.Context) error {
 	var req param.RegisterRequest
 	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
+	if err := ctrl.captchaSvc.VerifyCode(req.Email, req.Code); err != nil {
+		return err
+	}
 	user, err := ctrl.svc.Register(service.RegisterInput{
 		Username: req.Username,
 		Password: req.Password,
+		Email:    req.Email,
 	})
 	if err != nil {
 		return err

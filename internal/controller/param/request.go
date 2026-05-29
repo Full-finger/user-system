@@ -3,6 +3,8 @@ package param
 type RegisterRequest struct {
 	Username string `json:"username" validate:"required,min=3,max=50"`
 	Password string `json:"password" validate:"required,min=6"`
+	Email    string `json:"email" validate:"required,email"`
+	Code     string `json:"code" validate:"required,len=6"`
 }
 
 type LoginRequest struct {
@@ -21,7 +23,7 @@ type SendCodeRequest struct {
 
 type CodeLoginRequest struct {
 	Email string `json:"email" validate:"required,email"`
-	Code  string `json:"code" validate:"required"`
+	Code  string `json:"code" validate:"required,len=6"`
 }
 
 type BindEmailRequest struct {
