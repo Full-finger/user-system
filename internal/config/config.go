@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var ErrInvalidConfig = fmt.Errorf("配置校验失败")
+
 type Config struct {
 	Server    ServerConfig     `yaml:"server"`
 	Database  DatabaseConfig   `yaml:"database"`
@@ -21,7 +23,8 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port string `yaml:"port"`
+	Port        string   `yaml:"port"`
+	CORSOrigins []string `yaml:"cors_origins"`
 }
 
 type DatabaseConfig struct {
@@ -80,7 +83,29 @@ func Load(path string) (*Config, error) {
 	}
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+	}
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+func (c *Config) Validate() error {
+	if len(c.JWT.Secret) < 16 {
+		return fmt.Errorf("%w: JWT secret 长度不能少于 16", ErrInvalidConfig)
+	}
+	if c.JWT.Expire <= 0 {
+		return fmt.Errorf("%w: JWT expire 必须大于 0", ErrInvalidConfig)
+	}
+	if c.Captcha.Expire <= 0 {
+		return fmt.Errorf("%w: captcha expire 必须大于 0", ErrInvalidConfig)
+	}
+	if c.RateLimit.Window <= 0 {
+		return fmt.Errorf("%w: rate_limit window 必须大于 0", ErrInvalidConfig)
+	}
+	if c.RateLimit.MaxRequest <= 0 {
+		return fmt.Errorf("%w: rate_limit max_requests 必须大于 0", ErrInvalidConfig)
+	}
+	return nil
 }

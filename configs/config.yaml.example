@@ -1,5 +1,7 @@
 server:
   port: ":1323"
+  cors_origins:
+    - "http://localhost:5173"
 
 database:
   host: localhost

@@ -13,6 +13,7 @@ import (
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/controller"
 	"github.com/full-finger/user-system/internal/model"
+	"github.com/full-finger/user-system/internal/repository"
 	"github.com/full-finger/user-system/internal/router"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/full-finger/user-system/pkg/email"
@@ -63,8 +64,9 @@ func main() {
 		cfg.SMTP.From, cfg.SMTP.TLS, cfg.SMTP.Auth,
 	)
 
-	userSvc := service.NewUserService(db, &cfg.JWT)
-	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer)
+	userRepo := repository.NewUserRepository(db)
+	userSvc := service.NewUserService(userRepo, &cfg.JWT, log)
+	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer, log)
 	userCtrl := controller.NewUserController(userSvc, captchaSvc)
 
 	e := echo.New()
@@ -78,8 +80,12 @@ func main() {
 		log.Error("未处理错误", zap.Error(err), zap.String("path", c.Request().URL.Path))
 		c.JSON(500, map[string]any{"code": 500, "message": "内部错误", "data": nil})
 	}
+	corsOrigins := cfg.Server.CORSOrigins
+	if len(corsOrigins) == 0 {
+		corsOrigins = []string{"http://localhost:5173"}
+	}
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
+		AllowOrigins: corsOrigins,
 		AllowMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 	}))
