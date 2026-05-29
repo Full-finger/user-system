@@ -1,4 +1,7 @@
 # ── 项目配置 ────────────────────────────────────────────────
+# 确保 WSL 中 Linux 原生工具优先于 Windows 侧（避免 npx 调用到 Windows 版本）
+PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$(PATH)
+
 APP_NAME    := user-system
 CMD_DIR     := ./cmd/$(APP_NAME)
 BIN_DIR     := ./bin
