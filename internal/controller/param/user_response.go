@@ -2,6 +2,7 @@ package param
 
 import "github.com/full-finger/user-system/internal/model"
 
+// UserResponse 用户信息响应，脱敏密码。
 type UserResponse struct {
 	ID        uint   `json:"id"`
 	Username  string `json:"username"`
@@ -10,6 +11,7 @@ type UserResponse struct {
 	CreatedAt string `json:"created_at"`
 }
 
+// UserListResponse 分页用户列表响应。
 type UserListResponse struct {
 	List     []UserResponse `json:"list"`
 	Total    int64          `json:"total"`
@@ -17,6 +19,7 @@ type UserListResponse struct {
 	PageSize int            `json:"page_size"`
 }
 
+// ToUserResponse 将 model.User 转为 API 响应。
 func ToUserResponse(u *model.User) UserResponse {
 	r := UserResponse{
 		ID:        u.ID,
@@ -30,6 +33,7 @@ func ToUserResponse(u *model.User) UserResponse {
 	return r
 }
 
+// ToUserListResponse 将用户切片转为分页列表响应。
 func ToUserListResponse(users []model.User, total int64, page, pageSize int) UserListResponse {
 	list := make([]UserResponse, 0, len(users))
 	for i := range users {

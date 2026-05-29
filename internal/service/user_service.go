@@ -1,3 +1,4 @@
+// Package service 实现用户业务逻辑。
 package service
 
 import (
@@ -15,6 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserService 用户业务服务。
 type UserService struct {
 	repo repository.UserRepository
 	cfg  *config.JWTConfig
@@ -61,7 +63,9 @@ func (s *UserService) Register(ctx context.Context, in RegisterInput) (*model.Us
 	return user, nil
 }
 
+// Login 支持用户名或邮箱登录，返回 JWT token。
 func (s *UserService) Login(ctx context.Context, in LoginInput) (string, error) {
+	// 先按用户名查，找不到则 fallback 到邮箱
 	user, err := s.repo.FindByUsername(ctx, in.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -168,6 +172,7 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 	return s.GetProfile(ctx, user.ID)
 }
 
+// generateToken 签发 HS256 JWT，payload 包含 user_id、username、role。
 func (s *UserService) generateToken(user *model.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,

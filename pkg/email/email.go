@@ -1,3 +1,4 @@
+// Package email 提供 SMTP 邮件发送功能，支持 TLS 和明文两种模式。
 package email
 
 import (
@@ -7,6 +8,7 @@ import (
 	"net/smtp"
 )
 
+// Sender SMTP 邮件发送器，实现 service.Mailer 接口。
 type Sender struct {
 	host     string
 	port     int
@@ -29,6 +31,7 @@ func NewSender(host string, port int, username, password, from string, tls, auth
 	}
 }
 
+// Send 发送纯文本邮件。
 func (s *Sender) Send(to, subject, body string) error {
 	addr := net.JoinHostPort(s.host, fmt.Sprintf("%d", s.port))
 

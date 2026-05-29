@@ -12,10 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
+// Mailer 邮件发送接口，由 pkg/email 实现。
 type Mailer interface {
 	Send(to, subject, body string) error
 }
 
+// CaptchaService 邮箱验证码服务，基于 Redis 存储和频率限制。
 type CaptchaService struct {
 	rdb  *redis.Client
 	cfg  *config.CaptchaConfig
@@ -59,6 +61,7 @@ func (s *CaptchaService) SendCode(ctx context.Context, email string) error {
 	return nil
 }
 
+// VerifyCode 校验验证码，正确后立即失效。超过 MaxAttempts 次错误则提前失效。
 func (s *CaptchaService) VerifyCode(ctx context.Context, email, code string) error {
 	codeKey := fmt.Sprintf("captcha:code:%s", email)
 	stored, err := s.rdb.Get(ctx, codeKey).Result()

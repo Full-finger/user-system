@@ -28,6 +28,7 @@ import (
 )
 
 func main() {
+	// 初始化配置 → 日志 → 数据库 → Redis → 依赖注入 → 路由 → 启动
 	configPath := flag.String("config", "configs/config.yaml", "配置文件路径")
 	flag.Parse()
 

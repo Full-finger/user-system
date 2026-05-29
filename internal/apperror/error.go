@@ -1,7 +1,9 @@
+// Package apperror 提供统一的业务错误类型，所有业务层错误应使用本包构造。
 package apperror
 
 import "net/http"
 
+// AppError 携带 HTTP 状态码的业务错误。
 type AppError struct {
 	Code    int
 	Message string
@@ -23,6 +25,7 @@ func New(code int, msg string) *AppError {
 	return &AppError{Code: code, Message: msg}
 }
 
+// NewWrap 包装一个原始错误，保留错误链。
 func NewWrap(code int, msg string, err error) *AppError {
 	return &AppError{Code: code, Message: msg, Err: err}
 }

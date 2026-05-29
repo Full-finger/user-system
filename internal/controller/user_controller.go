@@ -1,3 +1,4 @@
+// Package controller 处理 HTTP 请求，调用 service 层完成业务。
 package controller
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// UserController 用户相关接口的处理器。
 type UserController struct {
 	svc        *service.UserService
 	captchaSvc *service.CaptchaService

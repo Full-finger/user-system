@@ -1,3 +1,4 @@
+// Package model 定义数据模型。
 package model
 
 import (
@@ -6,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// User 用户模型，支持软删除。
 type User struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
 	Username  string         `json:"username" gorm:"uniqueIndex;not null;size:50"`

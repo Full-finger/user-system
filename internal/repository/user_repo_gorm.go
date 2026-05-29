@@ -11,6 +11,7 @@ type userRepoGorm struct {
 	db *gorm.DB
 }
 
+// NewUserRepository 创建基于 GORM 的 UserRepository 实现。
 func NewUserRepository(db *gorm.DB) UserRepository {
 	return &userRepoGorm{db: db}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// RateLimitMiddleware 基于 Redis 滑动窗口的 IP+路径 限流，Redis 异常时放行。
 func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.MiddlewareFunc {
 	window := cfg.Window
 	if window <= 0 {

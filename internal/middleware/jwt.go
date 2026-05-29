@@ -1,3 +1,4 @@
+// Package middleware 提供 Echo 中间件：JWT 鉴权、权限控制、限流。
 package middleware
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// JWTMiddleware 解析 Bearer token，将 user_id/username/role 注入 Context。
 func JWTMiddleware(cfg *config.JWTConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -60,6 +62,7 @@ func JWTMiddleware(cfg *config.JWTConfig) echo.MiddlewareFunc {
 	}
 }
 
+// AdminOnly 限制仅 admin 角色可访问，需在 JWTMiddleware 之后使用。
 func AdminOnly() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {

@@ -1,3 +1,4 @@
+// Package router 注册 HTTP 路由。
 package router
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// Setup 注册所有 API 路由，分为公开、鉴权、管理员三组。
 func Setup(e *echo.Echo, ctrl *controller.UserController, cfg *config.Config, rdb *redis.Client) {
 	api := e.Group("/api")
 
