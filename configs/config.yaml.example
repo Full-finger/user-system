@@ -26,6 +26,15 @@ smtp:
   password: "CHANGE_ME_SMTP_PASSWORD"
   from: "your-email@example.com"
   tls: true
+  auth: true
+  # MailHog 测试配置示例:
+  # host: "localhost"
+  # port: 1025
+  # username: ""
+  # password: ""
+  # from: "test@localhost"
+  # tls: false
+  # auth: false
 
 captcha:
   length: 6
@@ -33,6 +42,10 @@ captcha:
   expire: 5m
   send_interval: 1m
   max_attempts: 0
+
+rate_limit:
+  window: 1m
+  max_requests: 10
 
 log:
   level: "info"

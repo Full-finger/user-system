@@ -10,13 +10,14 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig     `yaml:"server"`
-	Database DatabaseConfig   `yaml:"database"`
-	Redis    RedisConfig      `yaml:"redis"`
-	JWT      JWTConfig        `yaml:"jwt"`
-	SMTP     SMTPConfig       `yaml:"smtp"`
-	Captcha  CaptchaConfig    `yaml:"captcha"`
-	Log      logger.LogConfig `yaml:"log"`
+	Server    ServerConfig     `yaml:"server"`
+	Database  DatabaseConfig   `yaml:"database"`
+	Redis     RedisConfig      `yaml:"redis"`
+	JWT       JWTConfig        `yaml:"jwt"`
+	SMTP      SMTPConfig       `yaml:"smtp"`
+	Captcha   CaptchaConfig    `yaml:"captcha"`
+	RateLimit RateLimitConfig  `yaml:"rate_limit"`
+	Log       logger.LogConfig `yaml:"log"`
 }
 
 type ServerConfig struct {
@@ -56,6 +57,7 @@ type SMTPConfig struct {
 	Password string `yaml:"password"`
 	From     string `yaml:"from"`
 	TLS      bool   `yaml:"tls"`
+	Auth     bool   `yaml:"auth"`
 }
 
 type CaptchaConfig struct {
@@ -64,6 +66,11 @@ type CaptchaConfig struct {
 	Expire       time.Duration `yaml:"expire"`
 	SendInterval time.Duration `yaml:"send_interval"`
 	MaxAttempts  int           `yaml:"max_attempts"`
+}
+
+type RateLimitConfig struct {
+	Window     time.Duration `yaml:"window"`
+	MaxRequest int           `yaml:"max_requests"`
 }
 
 func Load(path string) (*Config, error) {

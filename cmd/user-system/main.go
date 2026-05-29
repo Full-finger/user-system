@@ -60,7 +60,7 @@ func main() {
 	mailer := email.NewSender(
 		cfg.SMTP.Host, cfg.SMTP.Port,
 		cfg.SMTP.Username, cfg.SMTP.Password,
-		cfg.SMTP.From, cfg.SMTP.TLS,
+		cfg.SMTP.From, cfg.SMTP.TLS, cfg.SMTP.Auth,
 	)
 
 	userSvc := service.NewUserService(db, &cfg.JWT)
@@ -86,7 +86,7 @@ func main() {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	router.Setup(e, userCtrl, cfg)
+	router.Setup(e, userCtrl, cfg, rdb)
 
 	log.Info("服务启动", zap.String("port", cfg.Server.Port))
 	go func() {
