@@ -31,7 +31,7 @@ endef
 
 # ── Phony 声明 ─────────────────────────────────────────────
 .PHONY: help run build dev init test lint fmt clean \
-        web web-dev web-build web-clean \
+        web web-dev web-build web-clean web-lint \
         docker-up docker-down docker-logs \
         all
 
@@ -99,6 +99,10 @@ web-build: ## 构建前端生产包
 web-clean: ## 清理前端构建产物
 	$(call log,清理前端构建产物...)
 	rm -rf $(WEB_DIR)/dist $(WEB_DIR)/node_modules
+
+web-lint: ## 前端代码检查
+	$(call log,前端代码检查...)
+	cd $(WEB_DIR) && npx eslint src/ --ext .js,.vue
 
 # ── Docker ──────────────────────────────────────────────────
 docker-up: ## 启动 Docker 基础设施 (PostgreSQL + Redis)
