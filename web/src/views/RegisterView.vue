@@ -276,39 +276,8 @@ async function handleRegister() {
 </script>
 
 <style scoped>
-.auth-page {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: var(--bg-page);
-  padding: 24px;
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 400px;
-  padding: 32px;
-  background: var(--bg-card);
-}
-
 .auth-card__header {
-  text-align: center;
   margin-bottom: 20px;
-}
-
-.auth-card__logo {
-  color: var(--accent);
-  margin-bottom: 8px;
-}
-
-.auth-card__title {
-  font-size: 22px;
-  margin-bottom: 4px;
-}
-
-.auth-card__desc {
-  font-size: 14px;
 }
 
 /* 步骤指示器 */
@@ -351,43 +320,10 @@ async function handleRegister() {
   background: var(--accent);
 }
 
-/* 表单 */
-.auth-form {
-  display: flex;
-  flex-direction: column;
-}
-
 .auth-form__step {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.auth-form__group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  background: var(--bg-muted);
-  border-radius: var(--radius-m);
-  transition: background var(--duration-medium-2) var(--ease-standard);
-}
-
-.auth-form__group:focus-within {
-  background: var(--bg-card);
-  box-shadow: 0 0 0 2px var(--accent-glow);
-}
-
-.auth-form__label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-3);
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
-
-.auth-form__group .input:focus {
-  box-shadow: none;
 }
 
 .auth-form__hint {
@@ -456,35 +392,12 @@ async function handleRegister() {
   color: var(--mint);
 }
 
-.auth-form__code-row {
-  display: flex;
-  gap: 8px;
-}
-
-.auth-form__code-row .input {
-  flex: 1;
-}
-
-.auth-form__error {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #c47878;
-}
-
 .auth-form__success {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   color: var(--mint);
-}
-
-.auth-form__submit {
-  width: 100%;
-  height: 42px;
-  margin-top: 4px;
 }
 
 .auth-form__actions {
@@ -496,12 +409,6 @@ async function handleRegister() {
 .auth-form__actions .btn {
   flex: 1;
   height: 42px;
-}
-
-.auth-card__footer {
-  text-align: center;
-  margin-top: 20px;
-  font-size: 14px;
 }
 
 /* 步骤过渡动画 */
@@ -520,11 +427,4 @@ async function handleRegister() {
   transform: translateX(-16px);
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  animation: spin 0.8s linear infinite;
-}
 </style>
