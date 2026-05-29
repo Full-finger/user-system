@@ -28,6 +28,10 @@ api.interceptors.response.use(
 )
 
 // ---- Auth ----
+export function checkUsername(username) {
+  return api.get('/check-username', { params: { username } })
+}
+
 export function register(data) {
   return api.post('/register', data)
 }
