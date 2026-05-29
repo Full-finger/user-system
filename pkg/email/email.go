@@ -14,9 +14,10 @@ type Sender struct {
 	password string
 	from     string
 	tls      bool
+	auth     bool
 }
 
-func NewSender(host string, port int, username, password, from string, tls bool) *Sender {
+func NewSender(host string, port int, username, password, from string, tls, auth bool) *Sender {
 	return &Sender{
 		host:     host,
 		port:     port,
@@ -24,12 +25,12 @@ func NewSender(host string, port int, username, password, from string, tls bool)
 		password: password,
 		from:     from,
 		tls:      tls,
+		auth:     auth,
 	}
 }
 
 func (s *Sender) Send(to, subject, body string) error {
 	addr := net.JoinHostPort(s.host, fmt.Sprintf("%d", s.port))
-	auth := smtp.PlainAuth("", s.username, s.password, s.host)
 
 	msg := "From: " + s.from + "\r\n" +
 		"To: " + to + "\r\n" +
@@ -50,8 +51,11 @@ func (s *Sender) Send(to, subject, body string) error {
 		}
 		defer client.Close()
 
-		if err = client.Auth(auth); err != nil {
-			return fmt.Errorf("smtp auth failed: %w", err)
+		if s.auth {
+			smtpAuth := smtp.PlainAuth("", s.username, s.password, s.host)
+			if err = client.Auth(smtpAuth); err != nil {
+				return fmt.Errorf("smtp auth failed: %w", err)
+			}
 		}
 		if err = client.Mail(s.from); err != nil {
 			return fmt.Errorf("smtp mail from failed: %w", err)
@@ -72,5 +76,9 @@ func (s *Sender) Send(to, subject, body string) error {
 		return client.Quit()
 	}
 
-	return smtp.SendMail(addr, auth, s.from, []string{to}, []byte(msg))
+	if s.auth {
+		smtpAuth := smtp.PlainAuth("", s.username, s.password, s.host)
+		return smtp.SendMail(addr, smtpAuth, s.from, []string{to}, []byte(msg))
+	}
+	return smtp.SendMail(addr, nil, s.from, []string{to}, []byte(msg))
 }

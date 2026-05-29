@@ -37,7 +37,10 @@ func (s *CaptchaService) SendCode(email string) error {
 		return apperror.TooMany("发送过于频繁，请稍后再试")
 	}
 
-	code := s.generateCode()
+	code, err := s.generateCode()
+	if err != nil {
+		return apperror.Internal("生成验证码失败")
+	}
 
 	codeKey := fmt.Sprintf("captcha:code:%s", email)
 	if err := s.rdb.Set(ctx, codeKey, code, s.cfg.Expire).Err(); err != nil {
@@ -88,7 +91,7 @@ func (s *CaptchaService) VerifyCode(email, code string) error {
 	return nil
 }
 
-func (s *CaptchaService) generateCode() string {
+func (s *CaptchaService) generateCode() (string, error) {
 	length := s.cfg.Length
 	if length <= 0 {
 		length = 6
@@ -108,9 +111,9 @@ func (s *CaptchaService) generateCode() string {
 	for i := 0; i < length; i++ {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
 		if err != nil {
-			return ""
+			return "", err
 		}
 		result[i] = chars[n.Int64()]
 	}
-	return string(result)
+	return string(result), nil
 }

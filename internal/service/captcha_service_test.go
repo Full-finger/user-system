@@ -163,7 +163,10 @@ func TestCaptchaService_generateCode(t *testing.T) {
 	svc, _, _ := setupCaptchaTest(t, cfg)
 
 	t.Run("number type", func(t *testing.T) {
-		code := svc.generateCode()
+		code, err := svc.generateCode()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if len(code) != 6 {
 			t.Errorf("expected 6 chars, got %d", len(code))
 		}
@@ -177,7 +180,10 @@ func TestCaptchaService_generateCode(t *testing.T) {
 	t.Run("alpha type", func(t *testing.T) {
 		alphaCfg := &config.CaptchaConfig{Length: 8, Type: "alpha"}
 		svc, _, _ := setupCaptchaTest(t, alphaCfg)
-		code := svc.generateCode()
+		code, err := svc.generateCode()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if len(code) != 8 {
 			t.Errorf("expected 8 chars, got %d", len(code))
 		}
@@ -186,7 +192,10 @@ func TestCaptchaService_generateCode(t *testing.T) {
 	t.Run("alphanumeric type", func(t *testing.T) {
 		anCfg := &config.CaptchaConfig{Length: 10, Type: "alphanumeric"}
 		svc, _, _ := setupCaptchaTest(t, anCfg)
-		code := svc.generateCode()
+		code, err := svc.generateCode()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if len(code) != 10 {
 			t.Errorf("expected 10 chars, got %d", len(code))
 		}
@@ -195,7 +204,10 @@ func TestCaptchaService_generateCode(t *testing.T) {
 	t.Run("default length when 0", func(t *testing.T) {
 		zeroCfg := &config.CaptchaConfig{Length: 0, Type: "number"}
 		svc, _, _ := setupCaptchaTest(t, zeroCfg)
-		code := svc.generateCode()
+		code, err := svc.generateCode()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if len(code) != 6 {
 			t.Errorf("expected default 6 chars, got %d", len(code))
 		}
