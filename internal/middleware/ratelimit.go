@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -32,10 +34,12 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 
 			ctx := c.Request().Context()
 
+			member := randMember()
+
 			pipe := rdb.Pipeline()
 			pipe.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", now-windowMs))
 			countCmd := pipe.ZCard(ctx, key)
-			pipe.ZAdd(ctx, key, redis.Z{Score: float64(now), Member: now})
+			pipe.ZAdd(ctx, key, redis.Z{Score: float64(now), Member: member})
 			pipe.Expire(ctx, key, window)
 			_, err := pipe.Exec(ctx)
 			if err != nil {
@@ -49,4 +53,10 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 			return next(c)
 		}
 	}
+}
+
+func randMember() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
