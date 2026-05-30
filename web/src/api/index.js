@@ -24,7 +24,9 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
-      router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      if (router.currentRoute.value.name !== 'Login') {
+        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      }
       return Promise.reject(new Error('登录已过期，请重新登录'))
     }
     const data = err.response?.data

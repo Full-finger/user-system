@@ -74,6 +74,7 @@ router.beforeEach((to, from, next) => {
     return next({ name: 'Login', query: { redirect: to.fullPath } })
   }
   if (to.meta.admin && !auth.isAdmin) {
+    console.warn('权限不足，无法访问管理页面')
     return next({ name: 'Home' })
   }
   if (to.meta.guest && auth.isLoggedIn) {

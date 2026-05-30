@@ -9,18 +9,20 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.role === 'admin')
 
-  async function login(form) {
-    const res = await apiLogin(form)
+  async function setTokenAndFetch(res) {
     token.value = res.data.token
     localStorage.setItem('token', res.data.token)
     await fetchProfile()
   }
 
+  async function login(form) {
+    const res = await apiLogin(form)
+    await setTokenAndFetch(res)
+  }
+
   async function loginByCode(form) {
     const res = await apiLoginByCode(form)
-    token.value = res.data.token
-    localStorage.setItem('token', res.data.token)
-    await fetchProfile()
+    await setTokenAndFetch(res)
   }
 
   async function register(form) {
