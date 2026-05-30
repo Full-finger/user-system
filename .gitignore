@@ -7,3 +7,4 @@
 /deployments/docker-compose.yml
 .agent
 /logs
+/web/public/site.config.js
