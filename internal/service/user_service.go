@@ -1,27 +1,45 @@
+// Package service 实现用户业务逻辑。
 package service
 
 import (
-	"strings"
+	"context"
+	"errors"
 	"time"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/model"
+	"github.com/full-finger/user-system/internal/repository"
 	"github.com/golang-jwt/jwt/v5"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
+// UserService 用户业务服务。
 type UserService struct {
-	db  *gorm.DB
-	cfg *config.JWTConfig
+	repo repository.UserRepository
+	cfg  *config.JWTConfig
+	log  *zap.Logger
 }
 
-func NewUserService(db *gorm.DB, cfg *config.JWTConfig) *UserService {
-	return &UserService{db: db, cfg: cfg}
+func NewUserService(repo repository.UserRepository, cfg *config.JWTConfig, log *zap.Logger) *UserService {
+	return &UserService{repo: repo, cfg: cfg, log: log}
 }
 
-func (s *UserService) Register(in RegisterInput) (*model.User, error) {
+func (s *UserService) CheckUsername(ctx context.Context, username string) error {
+	exists, err := s.repo.ExistsByUsername(ctx, username)
+	if err != nil {
+		s.log.Error("查询用户名失败", zap.Error(err))
+		return apperror.Internal("查询失败")
+	}
+	if exists {
+		return apperror.BadRequest("用户名已被占用")
+	}
+	return nil
+}
+
+func (s *UserService) Register(ctx context.Context, in RegisterInput) (*model.User, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, apperror.Internal("密码加密失败")
@@ -32,93 +50,108 @@ func (s *UserService) Register(in RegisterInput) (*model.User, error) {
 		Password: string(hashed),
 		Role:     "user",
 	}
-	if err := s.db.Create(user).Error; err != nil {
-		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "23505") {
-			return nil, apperror.BadRequest("用户名已存在")
+	if in.Email != "" {
+		user.Email = &in.Email
+	}
+	if err := s.repo.Create(ctx, user); err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, apperror.BadRequest("用户名或邮箱已存在")
 		}
+		s.log.Error("注册失败", zap.Error(err))
 		return nil, apperror.Internal("注册失败")
 	}
 	return user, nil
 }
 
-func (s *UserService) Login(in LoginInput) (string, error) {
-	var user model.User
-	if err := s.db.Where("username = ? OR email = ?", in.Username, in.Username).First(&user).Error; err != nil {
-		return "", apperror.Unauthorized("用户名或密码错误")
+// Login 支持用户名或邮箱登录，返回 JWT token。
+func (s *UserService) Login(ctx context.Context, in LoginInput) (string, error) {
+	// 先按用户名查，找不到则 fallback 到邮箱
+	user, err := s.repo.FindByUsername(ctx, in.Username)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			user, err = s.repo.FindByEmail(ctx, in.Username)
+		}
+		if err != nil {
+			return "", apperror.Unauthorized("用户名或密码错误")
+		}
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
 		return "", apperror.Unauthorized("用户名或密码错误")
 	}
-	return s.generateToken(&user)
+	return s.generateToken(user)
 }
 
-func (s *UserService) LoginByEmail(email string) (string, error) {
-	var user model.User
-	if err := s.db.Where("email = ?", email).First(&user).Error; err != nil {
-		return "", apperror.Unauthorized("用户不存在")
+func (s *UserService) LoginByEmail(ctx context.Context, email string) (string, error) {
+	user, err := s.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return "", apperror.Unauthorized("验证码无效或用户不存在")
 	}
-	return s.generateToken(&user)
+	return s.generateToken(user)
 }
 
-func (s *UserService) BindEmail(userID uint, email string) error {
-	var exist model.User
-	if err := s.db.Where("email = ?", email).First(&exist).Error; err == nil {
+func (s *UserService) BindEmail(ctx context.Context, userID uint, email string) error {
+	exists, err := s.repo.ExistsByEmail(ctx, email)
+	if err != nil {
+		s.log.Error("查询邮箱失败", zap.Error(err))
+		return apperror.Internal("绑定邮箱失败")
+	}
+	if exists {
 		return apperror.BadRequest("该邮箱已被绑定")
 	}
-	if err := s.db.Model(&model.User{}).Where("id = ?", userID).Update("email", email).Error; err != nil {
+	if err := s.repo.Update(ctx, userID, map[string]any{"email": email}); err != nil {
+		s.log.Error("绑定邮箱失败", zap.Error(err))
 		return apperror.Internal("绑定邮箱失败")
 	}
 	return nil
 }
 
-func (s *UserService) GetProfile(userID uint) (*model.User, error) {
-	var user model.User
-	if err := s.db.First(&user, userID).Error; err != nil {
-		return nil, apperror.NotFound("用户不存在")
+func (s *UserService) GetProfile(ctx context.Context, userID uint) (*model.User, error) {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
 	}
-	return &user, nil
+	return user, nil
 }
 
-func (s *UserService) UpdateProfile(userID uint, in UpdateInput) (*model.User, error) {
-	user, err := s.GetProfile(userID)
+func (s *UserService) UpdateProfile(ctx context.Context, userID uint, in UpdateInput) (*model.User, error) {
+	user, err := s.GetProfile(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(user, in)
+	return s.updateUser(ctx, user, in)
 }
 
-func (s *UserService) ListUsers(page, pageSize int) ([]model.User, int64, error) {
-	var users []model.User
-	var total int64
-	s.db.Model(&model.User{}).Count(&total)
-	offset := (page - 1) * pageSize
-	if err := s.db.Offset(offset).Limit(pageSize).Find(&users).Error; err != nil {
+func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
+	users, total, err := s.repo.FindPage(ctx, page, pageSize)
+	if err != nil {
+		s.log.Error("查询用户列表失败", zap.Error(err))
 		return nil, 0, apperror.Internal("查询失败")
 	}
 	return users, total, nil
 }
 
-func (s *UserService) GetUserByID(id uint) (*model.User, error) {
-	return s.GetProfile(id)
-}
-
-func (s *UserService) UpdateUser(id uint, in UpdateInput) (*model.User, error) {
-	user, err := s.GetProfile(id)
+func (s *UserService) UpdateUser(ctx context.Context, id uint, in UpdateInput) (*model.User, error) {
+	user, err := s.GetProfile(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(user, in)
+	return s.updateUser(ctx, user, in)
 }
 
-func (s *UserService) DeleteUser(id uint) error {
-	if err := s.db.Delete(&model.User{}, id).Error; err != nil {
+func (s *UserService) DeleteUser(ctx context.Context, id uint) error {
+	if err := s.repo.Delete(ctx, id); err != nil {
+		s.log.Error("删除用户失败", zap.Error(err))
 		return apperror.Internal("删除失败")
 	}
 	return nil
 }
 
-func (s *UserService) updateUser(user *model.User, in UpdateInput) (*model.User, error) {
-	updates := map[string]interface{}{}
+func (s *UserService) updateUser(ctx context.Context, user *model.User, in UpdateInput) (*model.User, error) {
+	updates := map[string]any{}
 	if in.Password != "" {
 		hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 		if err != nil {
@@ -132,12 +165,14 @@ func (s *UserService) updateUser(user *model.User, in UpdateInput) (*model.User,
 	if len(updates) == 0 {
 		return user, nil
 	}
-	if err := s.db.Model(user).Updates(updates).Error; err != nil {
+	if err := s.repo.Update(ctx, user.ID, updates); err != nil {
+		s.log.Error("更新用户失败", zap.Error(err))
 		return nil, apperror.Internal("更新失败")
 	}
-	return s.GetProfile(user.ID)
+	return s.GetProfile(ctx, user.ID)
 }
 
+// generateToken 签发 HS256 JWT，payload 包含 user_id、username、role。
 func (s *UserService) generateToken(user *model.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,

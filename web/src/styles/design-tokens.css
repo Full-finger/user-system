@@ -1,0 +1,115 @@
+/* ============================================================
+   Soft Dev-Moe Design System — CSS Custom Properties
+   ============================================================ */
+
+:root {
+  /* ---- 色彩 DNA ---- */
+  --accent: #c47a99;
+  --accent-hover: #b56d8a;
+  --accent-light: rgba(196, 122, 153, 0.12);
+  --accent-glow: rgba(196, 122, 153, 0.15);
+
+  --lavender: #9b8ec4;
+  --mint: #6db89a;
+  --sky: #7ba4d4;
+  --peach: #d4a07a;
+  --amber: #d4b85a;
+
+  /* ---- 背景层 ---- */
+  --bg-page: #f8f5fb;
+  --bg-card: #ffffff;
+  --bg-muted: #f4f0f7;
+  --bg-sidebar: #faf7fc;
+  --bg-quote: #f8f5fb;
+  --bg-best-answer: #f6faf8;
+  --bg-selected: #faf0f4;
+
+  /* ---- 文字 4 级 ---- */
+  --text-1: #2a2234;
+  --text-2: #524660;
+  --text-3: #7e7290;
+  --text-4: #a89cb5;
+
+  /* ---- 边框 ---- */
+  --border: rgba(42, 34, 52, 0.08);
+  --border-hover: rgba(42, 34, 52, 0.14);
+
+  /* ---- State Layer ---- */
+  --state-hover: rgba(196, 122, 153, 0.08);
+  --state-focus: rgba(196, 122, 153, 0.12);
+  --state-pressed: rgba(196, 122, 153, 0.12);
+  --state-dragged: rgba(196, 122, 153, 0.16);
+
+  /* ---- Elevation Shadows ---- */
+  --shadow-1: 0 1px 3px rgba(42, 34, 52, 0.04), 0 0 0 1px rgba(42, 34, 52, 0.03);
+  --shadow-2: 0 4px 12px rgba(42, 34, 52, 0.06), 0 0 0 1px rgba(42, 34, 52, 0.04);
+  --shadow-3: 0 1px 0 rgba(42, 34, 52, 0.04), 0 8px 16px rgba(42, 34, 52, 0.04);
+  --shadow-4: 0 12px 32px rgba(42, 34, 52, 0.08), 0 0 0 1px rgba(42, 34, 52, 0.04);
+  --shadow-5: 0 16px 48px rgba(42, 34, 52, 0.10);
+
+  /* ---- Shape (圆角) ---- */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --radius-full: 999px;
+
+  /* ---- Motion ---- */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-short-2: 100ms;
+  --duration-short-3: 150ms;
+  --duration-medium-1: 200ms;
+  --duration-medium-2: 250ms;
+  --duration-medium-3: 300ms;
+  --duration-medium-4: 350ms;
+  --duration-long-1: 400ms;
+  --duration-long-2: 450ms;
+
+  /* ---- 布局 ---- */
+  --topbar-h: 56px;
+  --sidebar-w: 220px;
+  --rightbar-w: 260px;
+
+  /* ---- 字体 ---- */
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ---- 暗色模式 ---- */
+[data-theme="dark"] {
+  --bg-page: #121016;
+  --bg-card: #1a171e;
+  --bg-muted: #1f1c24;
+  --bg-sidebar: #16141a;
+  --bg-quote: #1d1a22;
+  --bg-best-answer: #141a17;
+  --bg-selected: #221820;
+
+  --text-1: #ede8f2;
+  --text-2: #b8afc6;
+  --text-3: #857a96;
+  --text-4: #5e5470;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+
+  --accent: #d48da8;
+  --accent-hover: #e09eb8;
+  --accent-light: rgba(212, 141, 168, 0.15);
+  --accent-glow: rgba(212, 141, 168, 0.12);
+
+  --state-hover: rgba(212, 141, 168, 0.08);
+  --state-focus: rgba(212, 141, 168, 0.12);
+  --state-pressed: rgba(212, 141, 168, 0.12);
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-3: 0 1px 0 rgba(255, 255, 255, 0.04), 0 8px 16px rgba(0, 0, 0, 0.2);
+  --shadow-4: 0 12px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-5: 0 16px 48px rgba(0, 0, 0, 0.35);
+}

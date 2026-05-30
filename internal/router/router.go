@@ -1,3 +1,4 @@
+// Package router 注册 HTTP 路由。
 package router
 
 import (
@@ -5,16 +6,22 @@ import (
 	"github.com/full-finger/user-system/internal/controller"
 	"github.com/full-finger/user-system/internal/middleware"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
-func Setup(e *echo.Echo, ctrl *controller.UserController, cfg *config.Config) {
+// Setup 注册所有 API 路由，分为公开、鉴权、管理员三组。
+func Setup(e *echo.Echo, ctrl *controller.UserController, cfg *config.Config, rdb *redis.Client) {
 	api := e.Group("/api")
 
-	// 公开路由
-	api.POST("/register", ctrl.Register)
-	api.POST("/login", ctrl.Login)
-	api.POST("/send-code", ctrl.SendCode)
-	api.POST("/code-login", ctrl.CodeLogin)
+	// 公开路由（IP 限流）
+	public := api.Group("")
+	public.Use(middleware.RateLimitMiddleware(rdb, &cfg.RateLimit))
+
+	public.GET("/check-username", ctrl.CheckUsername)
+	public.POST("/register", ctrl.Register)
+	public.POST("/login", ctrl.Login)
+	public.POST("/send-code", ctrl.SendCode)
+	public.POST("/code-login", ctrl.CodeLogin)
 
 	// 需要鉴权的路由
 	auth := api.Group("")

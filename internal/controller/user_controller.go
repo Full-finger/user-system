@@ -1,3 +1,4 @@
+// Package controller 处理 HTTP 请求，调用 service 层完成业务。
 package controller
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// UserController 用户相关接口的处理器。
 type UserController struct {
 	svc        *service.UserService
 	captchaSvc *service.CaptchaService
@@ -25,33 +27,55 @@ func success(c echo.Context, data any) error {
 	})
 }
 
-func (ctrl *UserController) Register(c echo.Context) error {
-	var req param.RegisterRequest
-	if err := c.Bind(&req); err != nil {
+func bindAndValidate(c echo.Context, req any) error {
+	if err := c.Bind(req); err != nil {
 		return apperror.BadRequest("参数错误")
 	}
-	if err := c.Validate(&req); err != nil {
+	if err := c.Validate(req); err != nil {
 		return apperror.BadRequest(err.Error())
 	}
-	user, err := ctrl.svc.Register(service.RegisterInput{
+	return nil
+}
+
+func (ctrl *UserController) CheckUsername(c echo.Context) error {
+	username := c.QueryParam("username")
+	if username == "" {
+		return apperror.BadRequest("请输入用户名")
+	}
+	if len(username) < 3 {
+		return apperror.BadRequest("用户名至少 3 个字符")
+	}
+	if err := ctrl.svc.CheckUsername(c.Request().Context(), username); err != nil {
+		return err
+	}
+	return success(c, map[string]bool{"available": true})
+}
+
+func (ctrl *UserController) Register(c echo.Context) error {
+	var req param.RegisterRequest
+	if err := bindAndValidate(c, &req); err != nil {
+		return err
+	}
+	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
+		return err
+	}
+	user, err := ctrl.svc.Register(c.Request().Context(), service.RegisterInput{
 		Username: req.Username,
 		Password: req.Password,
+		Email:    req.Email,
 	})
 	if err != nil {
 		return err
 	}
-	return success(c, user)
+	return success(c, param.ToUserResponse(user))
 }
 
 func (ctrl *UserController) Login(c echo.Context) error {
 	var req param.LoginRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
+	if err := bindAndValidate(c, &req); err != nil {
+		return err
 	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	token, err := ctrl.svc.Login(service.LoginInput{
+	token, err := ctrl.svc.Login(c.Request().Context(), service.LoginInput{
 		Username: req.Username,
 		Password: req.Password,
 	})
@@ -66,11 +90,11 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 	if !ok {
 		return apperror.Unauthorized("未认证")
 	}
-	user, err := ctrl.svc.GetProfile(userID)
+	user, err := ctrl.svc.GetProfile(c.Request().Context(), userID)
 	if err != nil {
 		return err
 	}
-	return success(c, user)
+	return success(c, param.ToUserResponse(user))
 }
 
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {
@@ -79,21 +103,16 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 		return apperror.Unauthorized("未认证")
 	}
 	var req param.UpdateRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
+	if err := bindAndValidate(c, &req); err != nil {
+		return err
 	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	req.Role = ""
-	user, err := ctrl.svc.UpdateProfile(userID, service.UpdateInput{
+	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), userID, service.UpdateInput{
 		Password: req.Password,
-		Role:     req.Role,
 	})
 	if err != nil {
 		return err
 	}
-	return success(c, user)
+	return success(c, param.ToUserResponse(user))
 }
 
 func (ctrl *UserController) ListUsers(c echo.Context) error {
@@ -105,16 +124,11 @@ func (ctrl *UserController) ListUsers(c echo.Context) error {
 	if pageSize <= 0 || pageSize > 100 {
 		pageSize = 20
 	}
-	users, total, err := ctrl.svc.ListUsers(page, pageSize)
+	users, total, err := ctrl.svc.ListUsers(c.Request().Context(), page, pageSize)
 	if err != nil {
 		return err
 	}
-	return success(c, map[string]any{
-		"list":      users,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	return success(c, param.ToUserListResponse(users, total, page, pageSize))
 }
 
 func (ctrl *UserController) GetUser(c echo.Context) error {
@@ -122,11 +136,11 @@ func (ctrl *UserController) GetUser(c echo.Context) error {
 	if err != nil {
 		return apperror.BadRequest("无效的ID")
 	}
-	user, err := ctrl.svc.GetUserByID(uint(id))
+	user, err := ctrl.svc.GetProfile(c.Request().Context(), uint(id))
 	if err != nil {
 		return err
 	}
-	return success(c, user)
+	return success(c, param.ToUserResponse(user))
 }
 
 func (ctrl *UserController) UpdateUser(c echo.Context) error {
@@ -135,20 +149,17 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 		return apperror.BadRequest("无效的ID")
 	}
 	var req param.UpdateRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
+	if err := bindAndValidate(c, &req); err != nil {
+		return err
 	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	user, err := ctrl.svc.UpdateUser(uint(id), service.UpdateInput{
+	user, err := ctrl.svc.UpdateUser(c.Request().Context(), uint(id), service.UpdateInput{
 		Password: req.Password,
 		Role:     req.Role,
 	})
 	if err != nil {
 		return err
 	}
-	return success(c, user)
+	return success(c, param.ToUserResponse(user))
 }
 
 func (ctrl *UserController) DeleteUser(c echo.Context) error {
@@ -156,7 +167,7 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 	if err != nil {
 		return apperror.BadRequest("无效的ID")
 	}
-	if err := ctrl.svc.DeleteUser(uint(id)); err != nil {
+	if err := ctrl.svc.DeleteUser(c.Request().Context(), uint(id)); err != nil {
 		return err
 	}
 	return success(c, nil)
@@ -164,13 +175,10 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 
 func (ctrl *UserController) SendCode(c echo.Context) error {
 	var req param.SendCodeRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
+	if err := bindAndValidate(c, &req); err != nil {
+		return err
 	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	if err := ctrl.captchaSvc.SendCode(req.Email); err != nil {
+	if err := ctrl.captchaSvc.SendCode(c.Request().Context(), req.Email); err != nil {
 		return err
 	}
 	return success(c, nil)
@@ -178,16 +186,13 @@ func (ctrl *UserController) SendCode(c echo.Context) error {
 
 func (ctrl *UserController) CodeLogin(c echo.Context) error {
 	var req param.CodeLoginRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
-	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	if err := ctrl.captchaSvc.VerifyCode(req.Email, req.Code); err != nil {
+	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
-	token, err := ctrl.svc.LoginByEmail(req.Email)
+	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
+		return err
+	}
+	token, err := ctrl.svc.LoginByEmail(c.Request().Context(), req.Email)
 	if err != nil {
 		return err
 	}
@@ -200,16 +205,13 @@ func (ctrl *UserController) BindEmail(c echo.Context) error {
 		return apperror.Unauthorized("未认证")
 	}
 	var req param.BindEmailRequest
-	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("参数错误")
-	}
-	if err := c.Validate(&req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	if err := ctrl.captchaSvc.VerifyCode(req.Email, req.Code); err != nil {
+	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
-	if err := ctrl.svc.BindEmail(userID, req.Email); err != nil {
+	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
+		return err
+	}
+	if err := ctrl.svc.BindEmail(c.Request().Context(), userID, req.Email); err != nil {
 		return err
 	}
 	return success(c, nil)

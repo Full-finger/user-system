@@ -1,3 +1,4 @@
+// Package validator 提供 Echo validator 接口的中文错误翻译实现。
 package validator
 
 import (
@@ -6,17 +7,19 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
+// CustomValidator 实现 echo.Validator，将验证错误转为中文提示。
 type CustomValidator struct {
 	validator *validator.Validate
 }
 
+// New 创建 CustomValidator 实例。
 func New() *CustomValidator {
 	return &CustomValidator{
 		validator: validator.New(),
 	}
 }
 
-func (cv *CustomValidator) Validate(i interface{}) error {
+func (cv *CustomValidator) Validate(i any) error {
 	if err := cv.validator.Struct(i); err != nil {
 		// 将验证错误转换为友好的中文提示
 		var errMessages []string
@@ -39,6 +42,7 @@ func (cv *CustomValidator) Validate(i interface{}) error {
 	return nil
 }
 
+// ValidationError 验证错误集合。
 type ValidationError struct {
 	Messages []string
 }
