@@ -27,6 +27,7 @@ type Config struct {
 
 type ServerConfig struct {
 	Port        string   `yaml:"port"`
+	Env         string   `yaml:"env"`
 	CORSOrigins []string `yaml:"cors_origins"`
 }
 

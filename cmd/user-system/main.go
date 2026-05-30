@@ -83,6 +83,9 @@ func main() {
 	}
 	corsOrigins := cfg.Server.CORSOrigins
 	if len(corsOrigins) == 0 {
+		if cfg.Server.Env == "production" {
+			log.Warn("生产环境未配置 cors_origins，CORS 将拒绝所有跨域请求")
+		}
 		corsOrigins = []string{"http://localhost:5173"}
 	}
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
