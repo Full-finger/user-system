@@ -5,8 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- 站点配置：部署时在同目录创建 site.config.js 即可自定义，无需重新构建 -->
-    <script>window.__SITE_CONFIG__ = {}</script>
+    <script>window.__SITE_CONFIG__</script>
     <script src="/site.config.js" onerror=""></script>
+    <script>if(!window.__SITE_CONFIG__){console.warn('[site.config] 加载失败，使用默认配置');window.__SITE_CONFIG__={}}</script>
     <script>
       ;(function () {
         var c = window.__SITE_CONFIG__ || {}
