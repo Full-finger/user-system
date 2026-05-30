@@ -45,8 +45,14 @@ func (s *UserService) Register(ctx context.Context, in RegisterInput) (*model.Us
 		return nil, apperror.Internal("密码加密失败")
 	}
 
+	nickname := in.Nickname
+	if nickname == "" {
+		nickname = in.Username
+	}
+
 	user := &model.User{
 		Username: in.Username,
+		Nickname: nickname,
 		Password: string(hashed),
 		Role:     "user",
 	}
@@ -124,7 +130,7 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uint, in Profile
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(ctx, user, UpdateInput{Password: in.Password})
+	return s.updateUser(ctx, user, UpdateInput{Password: in.Password, Nickname: in.Nickname})
 }
 
 func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
@@ -160,6 +166,9 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 			return nil, apperror.Internal("密码加密失败")
 		}
 		updates["password"] = string(hashed)
+	}
+	if in.Nickname != "" {
+		updates["nickname"] = in.Nickname
 	}
 	if in.Role != "" {
 		if in.Role != "admin" && in.Role != "user" {

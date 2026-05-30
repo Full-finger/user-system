@@ -3,6 +3,7 @@ package controller
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
@@ -10,6 +11,8 @@ import (
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
+
+var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 // UserController 用户相关接口的处理器。
 type UserController struct {
@@ -42,8 +45,8 @@ func (ctrl *UserController) CheckUsername(c echo.Context) error {
 	if username == "" {
 		return apperror.BadRequest("请输入用户名")
 	}
-	if len(username) < 3 {
-		return apperror.BadRequest("用户名至少 3 个字符")
+	if !usernameRe.MatchString(username) {
+		return apperror.BadRequest("用户名仅限字母、数字和下划线，3-30 位")
 	}
 	if err := ctrl.svc.CheckUsername(c.Request().Context(), username); err != nil {
 		return err
@@ -62,6 +65,7 @@ func (ctrl *UserController) Register(c echo.Context) error {
 	user, err := ctrl.svc.Register(c.Request().Context(), service.RegisterInput{
 		Username: req.Username,
 		Password: req.Password,
+		Nickname: req.Nickname,
 		Email:    req.Email,
 	})
 	if err != nil {
@@ -108,6 +112,7 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	}
 	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), userID, service.ProfileUpdateInput{
 		Password: req.Password,
+		Nickname: req.Nickname,
 	})
 	if err != nil {
 		return err
@@ -154,6 +159,7 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 	}
 	user, err := ctrl.svc.UpdateUser(c.Request().Context(), uint(id), service.UpdateInput{
 		Password: req.Password,
+		Nickname: req.Nickname,
 		Role:     req.Role,
 	})
 	if err != nil {

@@ -34,7 +34,7 @@ func TestUserService_Register(t *testing.T) {
 	ctx := context.Background()
 	t.Run("success", func(t *testing.T) {
 		svc := setupUserTest(t)
-		user, err := svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
+		user, err := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -44,18 +44,32 @@ func TestUserService_Register(t *testing.T) {
 		if user.Username != "alice" {
 			t.Errorf("expected username alice, got %s", user.Username)
 		}
+		if user.Nickname != "alice" {
+			t.Errorf("expected default nickname alice, got %s", user.Nickname)
+		}
 		if user.Role != "user" {
 			t.Errorf("expected role user, got %s", user.Role)
 		}
-		if user.Password == "123456" {
+		if user.Password == "alice123" {
 			t.Error("password should be hashed")
+		}
+	})
+
+	t.Run("custom nickname", func(t *testing.T) {
+		svc := setupUserTest(t)
+		user, err := svc.Register(ctx, RegisterInput{Username: "bob", Password: "bob12345", Nickname: "鲍勃"})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if user.Nickname != "鲍勃" {
+			t.Errorf("expected nickname 鲍勃, got %s", user.Nickname)
 		}
 	})
 
 	t.Run("duplicate username", func(t *testing.T) {
 		svc := setupUserTest(t)
-		_, _ = svc.Register(ctx, RegisterInput{Username: "bob", Password: "123456"})
-		_, err := svc.Register(ctx, RegisterInput{Username: "bob", Password: "654321"})
+		_, _ = svc.Register(ctx, RegisterInput{Username: "bob", Password: "bob12345"})
+		_, err := svc.Register(ctx, RegisterInput{Username: "bob", Password: "bob54321"})
 		if err == nil {
 			t.Fatal("expected error for duplicate username")
 		}
@@ -65,10 +79,10 @@ func TestUserService_Register(t *testing.T) {
 func TestUserService_Login(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
-	_, _ = svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
+	_, _ = svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 
 	t.Run("success with username", func(t *testing.T) {
-		token, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "123456"})
+		token, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "alice123"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -78,14 +92,14 @@ func TestUserService_Login(t *testing.T) {
 	})
 
 	t.Run("wrong password", func(t *testing.T) {
-		_, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "wrong"})
+		_, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "wrong123"})
 		if err == nil {
 			t.Fatal("expected error")
 		}
 	})
 
 	t.Run("nonexistent user", func(t *testing.T) {
-		_, err := svc.Login(ctx, LoginInput{Username: "nobody", Password: "123456"})
+		_, err := svc.Login(ctx, LoginInput{Username: "nobody", Password: "nobody123"})
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -95,7 +109,7 @@ func TestUserService_Login(t *testing.T) {
 func TestUserService_GetProfile(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
-	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
+	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 
 	t.Run("found", func(t *testing.T) {
 		got, err := svc.GetProfile(ctx, user.ID)
@@ -118,15 +132,25 @@ func TestUserService_GetProfile(t *testing.T) {
 func TestUserService_UpdateUser(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
-	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
+	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 
 	t.Run("update password", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Password: "newpass"})
+		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Password: "newpass88"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 		if updated.Password == user.Password {
 			t.Error("expected password to change")
+		}
+	})
+
+	t.Run("update nickname", func(t *testing.T) {
+		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Nickname: "爱丽丝"})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if updated.Nickname != "爱丽丝" {
+			t.Errorf("expected nickname 爱丽丝, got %s", updated.Nickname)
 		}
 	})
 
@@ -154,7 +178,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 func TestUserService_DeleteUser(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
-	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
+	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 
 	err := svc.DeleteUser(ctx, user.ID)
 	if err != nil {
@@ -170,8 +194,8 @@ func TestUserService_DeleteUser(t *testing.T) {
 func TestUserService_BindEmail(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
-	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "123456"})
-	user2, _ := svc.Register(ctx, RegisterInput{Username: "bob", Password: "123456"})
+	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
+	user2, _ := svc.Register(ctx, RegisterInput{Username: "bob", Password: "bob12345"})
 
 	t.Run("success", func(t *testing.T) {
 		err := svc.BindEmail(ctx, user.ID, "alice@example.com")
@@ -195,7 +219,7 @@ func TestUserService_ListUsers(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		_, _ = svc.Register(ctx, RegisterInput{
 			Username: fmt.Sprintf("user%d", i),
-			Password: "123456",
+			Password: fmt.Sprintf("user%dpass", i),
 		})
 	}
 

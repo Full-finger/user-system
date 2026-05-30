@@ -8,6 +8,7 @@ import (
 type FollowUserResponse struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
+	Nickname string `json:"nickname"`
 }
 
 // FollowResponse 关注关系响应。
@@ -29,6 +30,7 @@ type FollowListResponse struct {
 type UserProfileResponse struct {
 	ID             uint   `json:"id"`
 	Username       string `json:"username"`
+	Nickname       string `json:"nickname"`
 	Email          string `json:"email,omitempty"`
 	Role           string `json:"role"`
 	CreatedAt      string `json:"created_at"`
@@ -42,6 +44,7 @@ func ToFollowUserResponse(u *model.User) FollowUserResponse {
 	return FollowUserResponse{
 		ID:       u.ID,
 		Username: u.Username,
+		Nickname: u.Nickname,
 	}
 }
 
@@ -86,6 +89,7 @@ func ToUserProfileResponse(u *model.User, postCount, followerCount, followingCou
 	r := UserProfileResponse{
 		ID:             u.ID,
 		Username:       u.Username,
+		Nickname:       u.Nickname,
 		Role:           u.Role,
 		CreatedAt:      u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		PostCount:      postCount,

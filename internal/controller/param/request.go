@@ -3,8 +3,9 @@ package param
 
 // RegisterRequest 注册请求。
 type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=50"`
-	Password string `json:"password" validate:"required,min=6"`
+	Username string `json:"username" validate:"required,username"`
+	Password string `json:"password" validate:"required,password"`
+	Nickname string `json:"nickname" validate:"omitempty,nickname"`
 	Email    string `json:"email" validate:"required,email"`
 	Code     string `json:"code" validate:"required,len=6"`
 }
@@ -17,7 +18,8 @@ type LoginRequest struct {
 
 // UpdateRequest 用户更新请求，所有字段可选。
 type UpdateRequest struct {
-	Password string `json:"password" validate:"omitempty,min=6"`
+	Password string `json:"password" validate:"omitempty,password"`
+	Nickname string `json:"nickname" validate:"omitempty,nickname"`
 	Role     string `json:"role" validate:"omitempty,oneof=admin user"`
 }
 
