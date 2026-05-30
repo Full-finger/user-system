@@ -434,7 +434,8 @@ components:
           example: zhangsan@example.com
         code:
           type: string
-          length: 6
+          minLength: 6
+          maxLength: 6
           description: 邮箱验证码
           example: "123456"
 
@@ -469,7 +470,8 @@ components:
           example: zhangsan@example.com
         code:
           type: string
-          length: 6
+          minLength: 6
+          maxLength: 6
           example: "123456"
 
     BindEmailRequest:
