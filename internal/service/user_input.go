@@ -13,8 +13,13 @@ type LoginInput struct {
 	Password string
 }
 
-// UpdateInput 用户更新输入，空值字段表示不更新。
+// UpdateInput 用户更新输入，空值字段表示不更新。仅管理员可修改 Role。
 type UpdateInput struct {
 	Password string
 	Role     string
+}
+
+// ProfileUpdateInput 普通用户修改个人信息输入，不含 Role 字段。
+type ProfileUpdateInput struct {
+	Password string
 }

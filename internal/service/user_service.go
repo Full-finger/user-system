@@ -72,6 +72,8 @@ func (s *UserService) Login(ctx context.Context, in LoginInput) (string, error) 
 			user, err = s.repo.FindByEmail(ctx, in.Username)
 		}
 		if err != nil {
+			// 用户不存在时执行一次假 bcrypt，防止通过响应时间枚举用户名
+			bcrypt.CompareHashAndPassword([]byte("$2a$10$fakehashfakehashfakehashfakeha"), []byte(in.Password))
 			return "", apperror.Unauthorized("用户名或密码错误")
 		}
 	}
@@ -117,12 +119,12 @@ func (s *UserService) GetProfile(ctx context.Context, userID uint) (*model.User,
 	return user, nil
 }
 
-func (s *UserService) UpdateProfile(ctx context.Context, userID uint, in UpdateInput) (*model.User, error) {
+func (s *UserService) UpdateProfile(ctx context.Context, userID uint, in ProfileUpdateInput) (*model.User, error) {
 	user, err := s.GetProfile(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
-	return s.updateUser(ctx, user, in)
+	return s.updateUser(ctx, user, UpdateInput{Password: in.Password})
 }
 
 func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
@@ -160,6 +162,9 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 		updates["password"] = string(hashed)
 	}
 	if in.Role != "" {
+		if in.Role != "admin" && in.Role != "user" {
+			return nil, apperror.BadRequest("无效的角色")
+		}
 		updates["role"] = in.Role
 	}
 	if len(updates) == 0 {

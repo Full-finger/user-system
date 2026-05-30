@@ -106,7 +106,7 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
-	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), userID, service.UpdateInput{
+	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), userID, service.ProfileUpdateInput{
 		Password: req.Password,
 	})
 	if err != nil {
