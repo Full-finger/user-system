@@ -49,9 +49,10 @@
             <router-link to="/login" class="btn btn--outline btn--sm">登录</router-link>
           </template>
 
-          <button class="topbar__icon-btn" @click="toggleTheme" :title="isDark ? '亮色模式' : '暗色模式'">
-            <PhMoon v-if="!isDark" :size="20" />
-            <PhSun v-else :size="20" />
+          <button class="topbar__icon-btn" @click="theme.toggleTheme" :title="theme.mode === 'light' ? '暗色模式' : theme.mode === 'dark' ? '亮色模式' : '跟随系统'">
+            <PhSun v-if="theme.mode === 'light'" :size="20" />
+            <PhMoon v-else-if="theme.mode === 'dark'" :size="20" />
+            <PhDesktop v-else :size="20" />
           </button>
         </div>
       </div>
@@ -153,30 +154,26 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { useRouter } from 'vue-router'
 import { siteConfig } from '../config/site'
 
 import {
   PhList, PhSparkle, PhMagnifyingGlass, PhBell, PhEnvelopeSimple,
-  PhCompass, PhMoon, PhSun, PhHouse, PhUserCircle, PhGearSix,
+  PhCompass, PhMoon, PhSun, PhDesktop, PhHouse, PhUserCircle, PhGearSix,
   PhSquaresFour, PhSignOut, PhUsers, PhChartBar, PhMegaphone,
   PhCheckCircle, PhXCircle, PhInfo
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
+const theme = useThemeStore()
 const router = useRouter()
 const sidebarOpen = ref(false)
 const searchQuery = ref('')
-const isDark = ref(false)
 
 const toast = reactive({ show: false, message: '', type: 'info' })
-
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
-}
 
 function handleLogout() {
   auth.logout()
@@ -192,13 +189,6 @@ function showToast(message, type = 'success') {
   setTimeout(() => { toast.show = false }, 3000)
 }
 
-onMounted(() => {
-  // respect system preference
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    isDark.value = true
-    document.documentElement.setAttribute('data-theme', 'dark')
-  }
-})
 </script>
 
 <style scoped>

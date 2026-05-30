@@ -82,14 +82,16 @@
           <PhPalette :size="16" />
           外观
         </h2>
-        <div class="settings__theme-row">
-          <span style="font-size: 14px">暗色模式</span>
+        <div class="settings__theme-group">
           <button
-            class="settings__toggle"
-            :class="{ 'settings__toggle--on': isDark }"
-            @click="toggleTheme"
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            class="settings__theme-btn"
+            :class="{ 'settings__theme-btn--active': theme.mode === opt.value }"
+            @click="theme.setTheme(opt.value)"
           >
-            <span class="settings__toggle-knob"></span>
+            <component :is="opt.icon" :size="16" />
+            {{ opt.label }}
           </button>
         </div>
       </div>
@@ -113,15 +115,21 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { updateProfile, bindEmail, sendCode } from '../api'
 import {
   PhKey, PhEnvelopeSimple, PhPalette, PhWarning, PhTrash,
-  PhXCircle, PhCheckCircle, PhCircleNotch
+  PhXCircle, PhCheckCircle, PhCircleNotch, PhSun, PhMoon, PhDesktop
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
+const theme = useThemeStore()
 
-const isDark = ref(document.documentElement.getAttribute('data-theme') === 'dark')
+const themeOptions = [
+  { value: 'light', label: '亮色', icon: PhSun },
+  { value: 'dark', label: '暗色', icon: PhMoon },
+  { value: 'system', label: '跟随系统', icon: PhDesktop },
+]
 
 // ---- Password ----
 const pwForm = reactive({ password: '', confirm: '' })
@@ -179,11 +187,6 @@ async function handleBindEmail() {
   finally { emailLoading.value = false }
 }
 
-// ---- Theme ----
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
-}
 </script>
 
 <style scoped>
@@ -269,40 +272,37 @@ function toggleTheme() {
   color: var(--mint);
 }
 
-.settings__theme-row {
+.settings__theme-group {
+  display: flex;
+  gap: 8px;
+}
+
+.settings__theme-btn {
+  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.settings__toggle {
-  width: 44px;
-  height: 24px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--text-4);
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 13px;
   cursor: pointer;
-  position: relative;
-  transition: background var(--duration-medium-1) var(--ease-standard);
+  transition: all var(--duration-medium-1) var(--ease-standard);
 }
 
-.settings__toggle--on {
-  background: var(--accent);
+.settings__theme-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-1);
 }
 
-.settings__toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform var(--duration-medium-3) var(--ease-emphasized);
-}
-
-.settings__toggle--on .settings__toggle-knob {
-  transform: translateX(20px);
+.settings__theme-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 @keyframes spin {
