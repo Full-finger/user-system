@@ -23,14 +23,21 @@ api.interceptors.response.use(
   (res) => res.data,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token')
-      if (router.currentRoute.value.name !== 'Login') {
-        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      const url = err.response?.config?.url || ''
+      // 登录接口的 401 表示凭证错误，不走"token 过期"逻辑
+      if (url !== '/login' && url !== '/code-login') {
+        localStorage.removeItem('token')
+        if (router.currentRoute.value.name !== 'Login') {
+          router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+        }
+        return Promise.reject(new Error('登录已过期，请重新登录'))
       }
-      return Promise.reject(new Error('登录已过期，请重新登录'))
     }
     const data = err.response?.data
-    const message = data?.message || '网络错误，请稍后重试'
+    const message = data?.message || '请求失败，请稍后重试'
+    if (!err.response) {
+      console.warn('[API] 未收到响应:', err.message, err.config?.url)
+    }
     return Promise.reject(new Error(message))
   }
 )

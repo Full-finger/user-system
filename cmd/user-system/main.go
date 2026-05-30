@@ -85,6 +85,9 @@ func main() {
 	e := echo.New()
 	e.Validator = validator.New()
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
+		if c.Response().Committed {
+			return
+		}
 		var appErr *apperror.AppError
 		if errors.As(err, &appErr) {
 			c.JSON(appErr.Code, map[string]any{"code": appErr.Code, "message": appErr.Message, "data": nil})
