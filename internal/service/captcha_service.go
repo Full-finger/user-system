@@ -76,13 +76,10 @@ func (s *CaptchaService) VerifyCode(ctx context.Context, email, code string) err
 	if stored != code {
 		if s.cfg.MaxAttempts > 0 {
 			attemptsKey := fmt.Sprintf("captcha:attempts:%s", email)
-			attempts, _ := s.rdb.Get(ctx, attemptsKey).Int()
-			if attempts >= s.cfg.MaxAttempts-1 {
+			if err := s.incAttempts(ctx, attemptsKey); err != nil {
 				s.rdb.Del(ctx, codeKey, attemptsKey)
 				return apperror.BadRequest("验证码已失效，请重新获取")
 			}
-			s.rdb.Incr(ctx, attemptsKey)
-			s.rdb.Expire(ctx, attemptsKey, s.cfg.Expire)
 		}
 		return apperror.BadRequest("验证码错误")
 	}
@@ -92,6 +89,19 @@ func (s *CaptchaService) VerifyCode(ctx context.Context, email, code string) err
 		delKeys = append(delKeys, fmt.Sprintf("captcha:attempts:%s", email))
 	}
 	s.rdb.Del(ctx, delKeys...)
+	return nil
+}
+
+// incAttempts 原子递增错误次数，达到上限时返回错误。
+func (s *CaptchaService) incAttempts(ctx context.Context, key string) error {
+	attempts, err := s.rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+	s.rdb.Expire(ctx, key, s.cfg.Expire)
+	if attempts > int64(s.cfg.MaxAttempts) {
+		return fmt.Errorf("exceeded")
+	}
 	return nil
 }
 

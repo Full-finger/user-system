@@ -128,7 +128,7 @@ func TestCaptchaService_VerifyCode(t *testing.T) {
 	t.Run("max attempts exceeded invalidates code", func(t *testing.T) {
 		svc, mr, _ := setupCaptchaTest(t, cfg)
 		mr.Set("captcha:code:test@example.com", "123456")
-		mr.Set("captcha:attempts:test@example.com", "2")
+		mr.Set("captcha:attempts:test@example.com", "3")
 		err := svc.VerifyCode(ctx, "test@example.com", "wrong")
 		if err == nil {
 			t.Fatal("expected error")
