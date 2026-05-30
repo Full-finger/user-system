@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# User-local site config & custom assets
+public/site.config.js
+public/custom/*
+!public/custom/.gitkeep
