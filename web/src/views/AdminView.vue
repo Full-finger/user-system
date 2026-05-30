@@ -148,6 +148,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
 import { listUsers, updateUser, deleteUser } from '../api'
 import {
   PhArrowClockwise, PhPencil, PhTrash, PhCaretLeft, PhCaretRight,
@@ -165,6 +166,7 @@ const editModal = reactive({ show: false, user: null })
 const editForm = reactive({ password: '', role: 'user' })
 const editError = ref('')
 const editLoading = ref(false)
+const toast = useToast()
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
@@ -224,9 +226,10 @@ async function handleDelete(user) {
   if (!confirm(`确定要删除用户 "${user.username}" 吗？（软删除）`)) return
   try {
     await deleteUser(user.id)
+    toast.success('已删除')
     fetchUsers()
   } catch (e) {
-    alert(e.message)
+    toast.error(e.message)
   }
 }
 

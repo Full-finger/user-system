@@ -160,6 +160,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
 import { getUserProfile, listUserPosts, listUserLikes, getFollowers, getFollowings, toggleFollow } from '../api'
 import {
   PhClock, PhNote, PhHeart, PhUserPlus, PhUsers, PhThumbsUp,
@@ -168,6 +169,7 @@ import {
 
 const route = useRoute()
 const auth = useAuthStore()
+const toast = useToast()
 
 const profile = ref(null)
 const loading = ref(true)
@@ -210,7 +212,7 @@ async function loadTab() {
       const res = await getFollowings(userId, { page: 1, page_size: 20 })
       followings.value = res.data?.list || []
     }
-  } catch (e) { console.error(e) }
+  } catch (e) { toast.error(e.message) }
 }
 
 async function handleFollow() {
@@ -218,9 +220,9 @@ async function handleFollow() {
   try {
     const res = await toggleFollow(profile.value.id)
     followed.value = res.data?.followed
-    if (followed.value) profile.value.follower_count++
-    else profile.value.follower_count = Math.max(0, profile.value.follower_count - 1)
-  } catch (e) { console.error(e) }
+    if (followed.value) { profile.value.follower_count++; toast.success('已关注') }
+    else { profile.value.follower_count = Math.max(0, profile.value.follower_count - 1); toast.success('已取消关注') }
+  } catch (e) { toast.error(e.message) }
 }
 
 function formatDate(dateStr) {

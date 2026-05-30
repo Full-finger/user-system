@@ -124,6 +124,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
 import { listPosts, listFeed, createPost, toggleLikePost, listNodes } from '../api'
 import {
   PhPencilSimpleLine, PhThumbsUp, PhClock, PhChatCircle, PhEye,
@@ -131,6 +132,7 @@ import {
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
+const toast = useToast()
 const activeTab = ref('all')
 const tabs = [
   { key: 'all', label: '全部', icon: PhHouse },
@@ -157,7 +159,7 @@ async function fetchPosts(reset = true) {
     const list = res.data?.list || []
     if (reset) posts.value = list; else posts.value.push(...list)
     hasMore.value = posts.value.length < (res.data?.total || 0)
-  } catch (e) { console.error(e) }
+  } catch (e) { toast.error(e.message) }
   finally { loading.value = false; loadingMore.value = false }
 }
 
@@ -170,7 +172,7 @@ async function handleLike(post) {
     const res = await toggleLikePost(post.id)
     if (res.data?.liked) { likedPosts.value.add(post.id); post.like_count++ }
     else { likedPosts.value.delete(post.id); post.like_count = Math.max(0, post.like_count - 1) }
-  } catch (e) { console.error(e) }
+  } catch (e) { toast.error(e.message) }
 }
 
 async function handleCreatePost() {
@@ -181,7 +183,8 @@ async function handleCreatePost() {
     showCreateModal.value = false
     newPost.node_id = null; newPost.title = ''; newPost.content = ''
     fetchPosts(true)
-  } catch (e) { alert(e.message || '发帖失败') }
+    toast.success('发布成功')
+  } catch (e) { toast.error(e.message || '发帖失败') }
   finally { creating.value = false }
 }
 
@@ -204,7 +207,7 @@ function formatCount(n) {
 
 onMounted(async () => {
   await fetchPosts()
-  try { const res = await listNodes(); allNodes.value = res.data?.nodes || [] } catch (e) { /* ignore */ }
+  try { const res = await listNodes(); allNodes.value = res.data?.nodes || [] } catch (e) { toast.error(e.message) }
 })
 </script>
 

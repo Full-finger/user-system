@@ -76,6 +76,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
 import { getPost, toggleLikePost, deletePost } from '../api'
 import {
   PhCaretRight, PhClock, PhEye, PhThumbsUp, PhTrash, PhMagnifyingGlass
@@ -84,6 +85,7 @@ import {
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const toast = useToast()
 
 const post = ref(null)
 const loading = ref(true)
@@ -97,7 +99,7 @@ async function fetchPost() {
     const res = await getPost(route.params.id)
     post.value = res.data
   } catch (e) {
-    console.error('加载帖子失败:', e)
+    toast.error(e.message)
     post.value = null
   } finally {
     loading.value = false
@@ -111,15 +113,16 @@ async function handleLike() {
     liked.value = res.data?.liked
     if (liked.value) post.value.like_count++
     else post.value.like_count = Math.max(0, post.value.like_count - 1)
-  } catch (e) { console.error(e) }
+  } catch (e) { toast.error(e.message) }
 }
 
 async function handleDelete() {
   if (!confirm('确定要删除这个帖子吗？')) return
   try {
     await deletePost(route.params.id)
+    toast.success('已删除')
     router.push('/')
-  } catch (e) { alert(e.message || '删除失败') }
+  } catch (e) { toast.error(e.message || '删除失败') }
 }
 
 function renderContent(content) {

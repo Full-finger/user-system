@@ -38,6 +38,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
 import { listNodes } from '../api'
 import {
   PhStack, PhNote, PhArrowRight, PhCompass
@@ -45,13 +46,14 @@ import {
 
 const nodes = ref([])
 const loading = ref(true)
+const toast = useToast()
 
 onMounted(async () => {
   try {
     const res = await listNodes()
     nodes.value = res.data?.nodes || []
   } catch (e) {
-    console.error('加载节点失败:', e)
+    toast.error(e.message)
   } finally {
     loading.value = false
   }
