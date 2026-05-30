@@ -1,0 +1,565 @@
+openapi: 3.0.3
+info:
+  title: 用户管理系统 API
+  version: 1.0.0
+  description: 用户注册、登录、个人信息管理及管理员用户管理接口。
+
+servers:
+  - url: http://localhost:1323/api
+    description: 本地开发
+
+security:
+  - BearerToken: []
+
+tags:
+  - name: 公开接口
+  - name: 认证接口
+  - name: 管理员接口
+
+paths:
+  /check-username:
+    get:
+      tags: [公开接口]
+      summary: 检查用户名是否可用
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+          description: 待检查的用户名
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          available:
+                            type: boolean
+                            example: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /register:
+    post:
+      tags: [公开接口]
+      summary: 用户注册
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: 注册成功，返回用户信息
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /login:
+    post:
+      tags: [公开接口]
+      summary: 用户名/邮箱密码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /send-code:
+    post:
+      tags: [公开接口]
+      summary: 发送邮箱验证码
+      description: 有频率限制，默认 1 分钟内不可重复发送。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendCodeRequest"
+      responses:
+        "200":
+          description: 发送成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /code-login:
+    post:
+      tags: [公开接口]
+      summary: 验证码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CodeLoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile:
+    get:
+      tags: [认证接口]
+      summary: 获取个人信息
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    put:
+      tags: [认证接口]
+      summary: 修改个人信息
+      description: 普通用户不能修改自己的角色。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile/email:
+    put:
+      tags: [认证接口]
+      summary: 绑定邮箱
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindEmailRequest"
+      responses:
+        "200":
+          description: 绑定成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users:
+    get:
+      tags: [管理员接口]
+      summary: 获取用户列表
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: 页码
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: 每页数量
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}:
+    get:
+      tags: [管理员接口]
+      summary: 获取指定用户
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [管理员接口]
+      summary: 更新指定用户
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [管理员接口]
+      summary: 删除指定用户
+      description: 软删除，数据可恢复。
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    BearerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 用户 ID
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          description: 响应数据，可能为 null
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: zhangsan
+        email:
+          type: string
+          nullable: true
+          example: zhangsan@example.com
+        role:
+          type: string
+          enum: [admin, user]
+          example: user
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+
+    UserListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResponse"
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIs..."
+
+    RegisterRequest:
+      type: object
+      required: [username, password, email, code]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: zhangsan
+        password:
+          type: string
+          minLength: 6
+          example: "123456"
+        email:
+          type: string
+          format: email
+          example: zhangsan@example.com
+        code:
+          type: string
+          length: 6
+          description: 邮箱验证码
+          example: "123456"
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          description: 用户名或邮箱
+          example: zhangsan
+        password:
+          type: string
+          example: "123456"
+
+    SendCodeRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          example: zhangsan@example.com
+
+    CodeLoginRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          example: zhangsan@example.com
+        code:
+          type: string
+          length: 6
+          example: "123456"
+
+    BindEmailRequest:
+      type: object
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+          example: zhangsan@example.com
+        code:
+          type: string
+          description: 邮箱验证码
+          example: "123456"
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 6
+          description: 新密码
+          example: "654321"
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 6
+          description: 新密码
+          example: "654321"
+        role:
+          type: string
+          enum: [admin, user]
+          description: 用户角色
+          example: admin
+
+  responses:
+    BadRequest:
+      description: 参数错误 / 业务错误
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+          example:
+            code: 400
+            message: 参数错误
+            data: null
+
+    Unauthorized:
+      description: 未认证 / token 无效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+          example:
+            code: 401
+            message: 未认证
+            data: null
+
+    Forbidden:
+      description: 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+          example:
+            code: 403
+            message: 权限不足
+            data: null
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+          example:
+            code: 404
+            message: 资源不存在
+            data: null
+
+    TooManyRequests:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+          example:
+            code: 429
+            message: 请求过于频繁
+            data: null
