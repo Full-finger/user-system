@@ -2,8 +2,8 @@
  * Site Configuration — 站点外观与行为配置
  *
  * 修改此文件后刷新页面即可生效，无需重新构建前端。
- * 将图片文件放到 public/ 目录下即可通过相对路径引用，例如:
- *   siteLogo: '/my-logo.png'
+ * 自定义图片请放到 public/custom/ 目录下（该目录已被 gitignore），例如:
+ *   siteLogo: '/custom/my-logo.png'
  */
 window.__SITE_CONFIG__ = {
   /* ---- 基础信息 ---- */
