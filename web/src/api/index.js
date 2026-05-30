@@ -86,4 +86,68 @@ export function deleteUser(id) {
   return api.delete(`/users/${id}`)
 }
 
+// ---- Nodes ----
+export function listNodes() {
+  return api.get('/nodes')
+}
+
+export function getNode(id) {
+  return api.get(`/nodes/${id}`)
+}
+
+export function getNodePosts(id, params) {
+  return api.get(`/nodes/${id}/posts`, { params })
+}
+
+// ---- Posts ----
+export function listPosts(params) {
+  return api.get('/posts', { params })
+}
+
+export function getPost(id) {
+  return api.get(`/posts/${id}`)
+}
+
+export function createPost(data) {
+  return api.post('/posts', data)
+}
+
+export function deletePost(id) {
+  return api.delete(`/posts/${id}`)
+}
+
+export function toggleLikePost(id) {
+  return api.put(`/posts/${id}/like`)
+}
+
+export function listFeed(params) {
+  return api.get('/feed', { params })
+}
+
+// ---- User profile (public) ----
+export function getUserProfile(userId) {
+  return api.get(`/users/${userId}`)
+}
+
+export function listUserPosts(userId, params) {
+  return api.get(`/users/${userId}/posts`, { params })
+}
+
+export function listUserLikes(userId, params) {
+  return api.get(`/users/${userId}/likes`, { params })
+}
+
+// ---- Follow ----
+export function toggleFollow(userId) {
+  return api.put(`/users/${userId}/follow`)
+}
+
+export function getFollowers(userId, params) {
+  return api.get(`/users/${userId}/followers`, { params })
+}
+
+export function getFollowings(userId, params) {
+  return api.get(`/users/${userId}/followings`, { params })
+}
+
 export default api

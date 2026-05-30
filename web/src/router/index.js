@@ -29,6 +29,21 @@ const routes = [
         component: () => import('../views/ExploreView.vue')
       },
       {
+        path: 'nodes/:id',
+        name: 'NodePosts',
+        component: () => import('../views/NodePostsView.vue')
+      },
+      {
+        path: 'posts/:id',
+        name: 'PostDetail',
+        component: () => import('../views/PostView.vue')
+      },
+      {
+        path: 'users/:id',
+        name: 'UserProfile',
+        component: () => import('../views/UserProfileView.vue')
+      },
+      {
         path: 'profile',
         name: 'Profile',
         component: () => import('../views/ProfileView.vue'),
