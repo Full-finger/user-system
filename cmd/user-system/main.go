@@ -46,7 +46,7 @@ func main() {
 		log.Sync()
 		os.Exit(1)
 	}
-	db.AutoMigrate(&model.User{})
+	db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{})
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr,
@@ -66,9 +66,21 @@ func main() {
 	)
 
 	userRepo := repository.NewUserRepository(db)
+	postRepo := repository.NewPostRepository(db)
+	likeRepo := repository.NewLikeRepository(db)
+	followRepo := repository.NewFollowRepository(db)
+	nodeRepo := repository.NewNodeRepository(db)
+	mentionRepo := repository.NewMentionRepository(db)
+
 	userSvc := service.NewUserService(userRepo, &cfg.JWT, log)
 	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer, log)
+	nodeSvc := service.NewNodeService(nodeRepo, userRepo, mentionRepo, log)
+	nodeSvc.SeedNodes(context.Background())
+	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeSvc, log)
+	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
+
 	userCtrl := controller.NewUserController(userSvc, captchaSvc)
+	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc)
 
 	e := echo.New()
 	e.Validator = validator.New()
@@ -96,7 +108,7 @@ func main() {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	router.Setup(e, userCtrl, cfg, rdb)
+	router.Setup(e, userCtrl, postCtrl, cfg, rdb)
 
 	log.Info("服务启动", zap.String("port", cfg.Server.Port))
 	go func() {
