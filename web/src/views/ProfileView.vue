@@ -3,23 +3,23 @@
     <template v-if="auth.user">
       <!-- Profile Header -->
       <div class="card profile-header">
-        <div class="profile-header__left">
-          <div class="avatar avatar--lg">
-            {{ auth.user.username[0].toUpperCase() }}
-          </div>
-          <div class="profile-header__info">
-            <h1 class="font-display profile-header__name">
-              {{ auth.user.username }}
-            </h1>
-            <div class="profile-header__meta">
-              <span class="pill pill--accent">{{ auth.user.role === 'admin' ? '管理员' : '普通用户' }}</span>
-              <span class="text-3" style="font-size: 13px">
-                <PhClock :size="12" style="vertical-align: -1px" />
-                注册于 {{ formatDate(auth.user.created_at) }}
-              </span>
+          <div class="profile-header__left">
+            <div class="avatar avatar--lg">
+              {{ (auth.user.nickname || auth.user.username)[0].toUpperCase() }}
+            </div>
+            <div class="profile-header__info">
+              <h1 class="font-display profile-header__name">
+                {{ auth.user.nickname || auth.user.username }}
+              </h1>
+              <div class="profile-header__meta">
+                <span class="pill pill--accent">{{ auth.user.role === 'admin' ? '管理员' : '普通用户' }}</span>
+                <span class="text-3" style="font-size: 13px">
+                  <PhClock :size="12" style="vertical-align: -1px" />
+                  注册于 {{ formatDate(auth.user.created_at) }}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
         <router-link to="/settings" class="btn btn--outline btn--sm">
           <PhGearSix :size="14" />
           设置
@@ -42,7 +42,11 @@
         <h2 class="font-display profile-info__title">账户信息</h2>
         <div class="profile-info__row">
           <span class="text-3">用户名</span>
-          <span>{{ auth.user.username }}</span>
+          <span>@{{ auth.user.username }}</span>
+        </div>
+        <div class="profile-info__row">
+          <span class="text-3">昵称</span>
+          <span>{{ auth.user.nickname || auth.user.username }}</span>
         </div>
         <div class="profile-info__row">
           <span class="text-3">角色</span>

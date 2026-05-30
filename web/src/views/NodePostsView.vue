@@ -56,7 +56,7 @@
           <div class="post-card__meta text-4">
             <span class="post-card__author">
               <span class="post-card__online-dot" style="background: var(--text-4)"></span>
-              {{ post.user?.username || '匿名' }}
+              {{ post.user?.nickname || post.user?.username || '匿名' }}
             </span>
             <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(post.created_at) }}</span>
             <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ post.reply_count }}</span>

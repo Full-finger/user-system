@@ -39,9 +39,9 @@
           </router-link>
 
           <template v-if="auth.isLoggedIn">
-            <router-link to="/profile" class="topbar__avatar" :title="auth.user?.username">
+            <router-link to="/profile" class="topbar__avatar" :title="auth.user?.nickname || auth.user?.username">
               <div class="avatar avatar--sm">
-                {{ (auth.user?.username || '?')[0].toUpperCase() }}
+                {{ (auth.user?.nickname || auth.user?.username || '?')[0].toUpperCase() }}
               </div>
             </router-link>
           </template>

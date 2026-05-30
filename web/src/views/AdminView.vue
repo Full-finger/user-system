@@ -46,9 +46,10 @@
             <td>
               <div style="display: flex; align-items: center; gap: 8px">
                 <div class="avatar avatar--sm" style="width: 28px; height: 28px; font-size: 11px">
-                  {{ user.username[0].toUpperCase() }}
+                  {{ (user.nickname || user.username)[0].toUpperCase() }}
                 </div>
-                <span style="font-weight: 500">{{ user.username }}</span>
+                <span style="font-weight: 500">{{ user.nickname || user.username }}</span>
+                <span class="text-4" style="font-size: 11px">@{{ user.username }}</span>
               </div>
             </td>
             <td class="text-3" style="font-size: 13px">{{ user.email || '—' }}</td>
@@ -118,8 +119,12 @@
               <input class="input" :value="editModal.user?.username" disabled />
             </div>
             <div class="auth-form__group">
+              <label class="auth-form__label">昵称（留空则不修改）</label>
+              <input v-model="editForm.nickname" type="text" class="input" placeholder="1-50 字符" />
+            </div>
+            <div class="auth-form__group">
               <label class="auth-form__label">新密码（留空则不修改）</label>
-              <input v-model="editForm.password" type="password" class="input" placeholder="至少 6 位" />
+              <input v-model="editForm.password" type="password" class="input" placeholder="至少 8 位，须包含字母和数字" />
             </div>
             <div class="auth-form__group">
               <label class="auth-form__label">角色</label>
@@ -163,7 +168,7 @@ const loading = ref(false)
 const error = ref('')
 
 const editModal = reactive({ show: false, user: null })
-const editForm = reactive({ password: '', role: 'user' })
+const editForm = reactive({ nickname: '', password: '', role: 'user' })
 const editError = ref('')
 const editLoading = ref(false)
 const toast = useToast()
@@ -186,6 +191,7 @@ async function fetchUsers() {
 
 function openEditModal(user) {
   editModal.user = user
+  editForm.nickname = ''
   editForm.password = ''
   editForm.role = user.role
   editError.value = ''
@@ -195,9 +201,12 @@ function openEditModal(user) {
 async function handleEdit() {
   editError.value = ''
   const data = {}
+  if (editForm.nickname) {
+    data.nickname = editForm.nickname
+  }
   if (editForm.password) {
-    if (editForm.password.length < 6) {
-      editError.value = '密码至少 6 位'
+    if (editForm.password.length < 8 || !/[a-zA-Z]/.test(editForm.password) || !/\d/.test(editForm.password)) {
+      editError.value = '密码至少 8 位，须包含字母和数字'
       return
     }
     data.password = editForm.password

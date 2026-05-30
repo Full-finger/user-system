@@ -4,9 +4,9 @@
       <!-- Header -->
       <div class="card profile-header fade-up">
         <div class="profile-header__left">
-          <div class="avatar avatar--lg">{{ (profile.username || '?')[0].toUpperCase() }}</div>
+          <div class="avatar avatar--lg">{{ (profile.nickname || profile.username || '?')[0].toUpperCase() }}</div>
           <div class="profile-header__info">
-            <h1 class="font-display profile-header__name">{{ profile.username }}</h1>
+            <h1 class="font-display profile-header__name">{{ profile.nickname || profile.username }}</h1>
             <div class="profile-header__meta">
               <span class="pill pill--accent">{{ profile.role === 'admin' ? '管理员' : '普通用户' }}</span>
               <span class="text-3" style="font-size: 13px">
@@ -107,7 +107,7 @@
                 <span class="pill" :style="{ background: (item.post.node?.color || '#c47a99') + '18', color: item.post.node?.color || '#c47a99' }">{{ item.post.node?.name }}</span>
               </div>
               <div class="post-card__meta text-4">
-                <span>{{ item.post.user?.username }}</span>
+                <span>{{ item.post.user?.nickname || item.post.user?.username }}</span>
                 <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(item.post.created_at) }}</span>
               </div>
             </div>
@@ -122,8 +122,8 @@
       <div v-if="activeTab === 'followers'">
         <div v-if="followers.length > 0" class="user-list">
           <div v-for="f in followers" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { id: f.user.id } })">
-            <div class="avatar avatar--sm">{{ (f.user.username || '?')[0].toUpperCase() }}</div>
-            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.username }}</span>
+            <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
+            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
         </div>
         <div v-else class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无粉丝</p></div>
@@ -133,8 +133,8 @@
       <div v-if="activeTab === 'followings'">
         <div v-if="followings.length > 0" class="user-list">
           <div v-for="f in followings" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { id: f.user.id } })">
-            <div class="avatar avatar--sm">{{ (f.user.username || '?')[0].toUpperCase() }}</div>
-            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.username }}</span>
+            <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
+            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
         </div>
         <div v-else class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无关注</p></div>
