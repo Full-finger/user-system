@@ -3,47 +3,59 @@
     <h1 class="font-display" style="font-size: 26px; margin-bottom: 20px">探索</h1>
 
     <div class="explore__grid">
-      <div
-        v-for="(cat, i) in categories"
-        :key="cat.name"
+      <router-link
+        v-for="(node, i) in nodes"
+        :key="node.id"
+        :to="{ name: 'NodePosts', params: { id: node.id } }"
         class="category-card card"
         :style="{ animationDelay: (i * 40) + 'ms' }"
       >
-        <div class="category-card__bar" :style="{ background: cat.color }"></div>
-        <div class="category-card__icon" :style="{ background: cat.color + '14', color: cat.color }">
-          <component :is="cat.icon" :size="20" />
+        <div class="category-card__bar" :style="{ background: node.color || 'var(--accent)' }"></div>
+        <div class="category-card__icon" :style="{ background: (node.color || 'var(--accent)') + '14', color: node.color || 'var(--accent)' }">
+          <PhStack :size="20" />
         </div>
-        <h3 class="font-display category-card__name">{{ cat.name }}</h3>
-        <p class="text-3 category-card__desc">{{ cat.desc }}</p>
+        <h3 class="font-display category-card__name">{{ node.name }}</h3>
+        <p class="text-3 category-card__desc">{{ node.desc }}</p>
         <div class="category-card__stats text-4">
-          <span><PhNote :size="12" /> 开发中</span>
+          <span><PhNote :size="12" /> {{ node.post_count || 0 }} 帖子</span>
         </div>
-        <button class="btn btn--outline btn--sm category-card__btn">
+        <span class="btn btn--outline btn--sm category-card__btn">
           <PhArrowRight :size="14" />
           进入
-        </button>
+        </span>
+      </router-link>
+    </div>
+
+    <div v-if="nodes.length === 0 && !loading" class="explore__empty card">
+      <div class="explore__empty-icon">
+        <PhCompass :size="32" weight="bold" />
       </div>
+      <h3 class="font-display" style="font-size: 16px; margin-bottom: 4px">暂无节点</h3>
+      <p class="text-3" style="font-size: 13px">节点正在创建中，请稍后再来</p>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
+import { listNodes } from '../api'
 import {
-  PhCode, PhRocketLaunch, PhQuestion, PhGift,
-  PhMegaphone, PhChatsCircle, PhBriefcase, PhBug,
-  PhNote, PhArrowRight
+  PhStack, PhNote, PhArrowRight, PhCompass
 } from '@phosphor-icons/vue'
 
-const categories = [
-  { name: '技术讨论', desc: '编程语言、框架、工具的深度技术讨论', color: '#9b8ec4', icon: PhCode },
-  { name: '项目展示', desc: '分享你的开源项目和作品', color: '#6db89a', icon: PhRocketLaunch },
-  { name: '新手求助', desc: '遇到问题？在这里寻求帮助', color: '#7ba4d4', icon: PhQuestion },
-  { name: '资源分享', desc: '优质教程、工具、资源推荐', color: '#d4a07a', icon: PhGift },
-  { name: '公告/官方', desc: '社区公告和官方信息', color: '#d4b85a', icon: PhMegaphone },
-  { name: '闲聊灌水', desc: '轻松闲聊，分享日常', color: '#c47a99', icon: PhChatsCircle },
-  { name: '求职招聘', desc: '工作机会和求职信息', color: '#8bb8a8', icon: PhBriefcase },
-  { name: 'Bug 反馈', desc: '反馈社区平台的 Bug 和建议', color: '#c4987a', icon: PhBug },
-]
+const nodes = ref([])
+const loading = ref(true)
+
+onMounted(async () => {
+  try {
+    const res = await listNodes()
+    nodes.value = res.data?.nodes || []
+  } catch (e) {
+    console.error('加载节点失败:', e)
+  } finally {
+    loading.value = false
+  }
+})
 </script>
 
 <style scoped>
@@ -60,6 +72,8 @@ const categories = [
   flex-direction: column;
   gap: 8px;
   transition: box-shadow var(--duration-medium-2) var(--ease-standard);
+  text-decoration: none;
+  color: inherit;
 }
 
 .category-card:hover {
@@ -115,6 +129,24 @@ const categories = [
 .category-card__btn {
   align-self: flex-start;
   margin-top: 4px;
+}
+
+.explore__empty {
+  padding: 40px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.explore__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-l);
+  background: var(--bg-muted);
+  color: var(--text-4);
+  margin-bottom: 12px;
 }
 
 @media (max-width: 960px) {

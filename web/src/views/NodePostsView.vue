@@ -1,21 +1,29 @@
 <template>
-  <div class="home">
-    <div class="home__header fade-up">
-      <h1 class="font-display home__title">发现</h1>
-      <button class="btn btn--primary" @click="showCreateModal = true" v-if="auth.isLoggedIn">
-        <PhPencilSimpleLine :size="16" />
-        发帖
-      </button>
+  <div class="node-posts fade-up">
+    <!-- Node header -->
+    <div v-if="node" class="card fade-up" style="display: flex; gap: 16px; padding: 24px; align-items: flex-start; position: relative; margin-bottom: 16px">
+      <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: var(--radius-m) 0 0 var(--radius-m)" :style="{ background: node.color || 'var(--accent)' }"></div>
+      <div class="node-header__icon" :style="{ background: (node.color || 'var(--accent)') + '14', color: node.color || 'var(--accent)' }">
+        <PhStack :size="24" />
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h1 class="font-display" style="font-size: 22px">{{ node.name }}</h1>
+        <p class="text-3" style="font-size: 13px">{{ node.desc }}</p>
+        <span class="text-4" style="font-size: 12px"><PhNote :size="12" style="vertical-align: -1px" /> {{ node.post_count || 0 }} 帖子</span>
+      </div>
     </div>
 
+    <!-- Sort tabs -->
     <div class="tab-bar fade-up" style="animation-delay: 40ms">
-      <button
-        v-for="tab in tabs" :key="tab.key"
-        class="tab-btn" :class="{ 'tab-btn--active': activeTab === tab.key }"
-        @click="switchTab(tab.key)"
-      >
-        <component :is="tab.icon" :size="14" />
-        {{ tab.label }}
+      <button class="tab-btn" :class="{ 'tab-btn--active': sort === 'time' }" @click="switchSort('time')">
+        <PhClock :size="14" /> 最新
+      </button>
+      <button class="tab-btn" :class="{ 'tab-btn--active': sort === 'replies' }" @click="switchSort('replies')">
+        <PhChatCircle :size="14" /> 最多回复
+      </button>
+      <div style="flex:1"></div>
+      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" @click="showCreateModal = true">
+        <PhPencilSimpleLine :size="14" /> 发帖
       </button>
     </div>
 
@@ -23,7 +31,6 @@
     <div v-if="loading" style="padding-top: 8px">
       <div class="skeleton" style="height: 80px; margin-bottom: 8px"></div>
       <div class="skeleton" style="height: 80px; margin-bottom: 8px"></div>
-      <div class="skeleton" style="height: 80px"></div>
     </div>
 
     <!-- Posts -->
@@ -34,7 +41,7 @@
         :style="{ animationDelay: (80 + i * 40) + 'ms' }"
         @click="$router.push({ name: 'PostDetail', params: { id: post.id } })"
       >
-        <div class="post-card__bar" :style="{ background: post.node?.color || 'var(--accent)' }"></div>
+        <div class="post-card__bar" :style="{ background: node?.color || 'var(--accent)' }"></div>
         <div class="post-card__vote">
           <button class="post-card__vote-btn" @click.stop="handleLike(post)">
             <PhThumbsUp :size="16" :weight="likedPosts.has(post.id) ? 'fill' : 'regular'" />
@@ -44,9 +51,6 @@
         <div class="post-card__content">
           <div class="post-card__top">
             <h3 class="post-card__title">{{ post.title }}</h3>
-            <span class="pill" :style="{ background: (post.node?.color || '#c47a99') + '18', color: post.node?.color || '#c47a99' }">
-              {{ post.node?.name || '未知' }}
-            </span>
           </div>
           <p class="post-card__desc text-3">{{ post.content }}</p>
           <div class="post-card__meta text-4">
@@ -56,24 +60,21 @@
             </span>
             <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(post.created_at) }}</span>
             <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ post.reply_count }}</span>
-            <span><PhEye :size="12" style="vertical-align: -1px" /> {{ formatCount(post.view_count) }}</span>
+            <span><PhEye :size="12" style="vertical-align: -1px" /> {{ post.view_count }}</span>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Empty -->
-    <div v-else class="empty-state card fade-up" style="animation-delay: 80ms">
+    <div v-else class="empty-state card fade-up" style="margin-top: 8px; animation-delay: 80ms">
       <div class="empty-state__icon"><PhNote :size="32" weight="bold" /></div>
-      <h2 class="font-display" style="font-size: 18px; margin-bottom: 6px">还没有帖子</h2>
+      <h2 class="font-display" style="font-size: 18px; margin-bottom: 6px">暂无帖子</h2>
       <p class="text-3" style="font-size: 14px">成为第一个发帖的人吧！</p>
-      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" style="margin-top: 12px" @click="showCreateModal = true">
-        <PhPencilSimpleLine :size="14" /> 发帖
-      </button>
     </div>
 
     <!-- Load more -->
-    <div v-if="posts.length > 0" style="padding: 12px 0; text-align: center">
+    <div v-if="posts.length > 0" style="padding: 12px 0; text-align: center; margin-top: 8px">
       <button v-if="hasMore" class="btn btn--outline btn--sm" @click="loadMore" :disabled="loadingMore">
         <PhCircleNotch v-if="loadingMore" :size="14" class="spin" />
         <span v-else>加载更多</span>
@@ -92,11 +93,8 @@
             </div>
             <div class="modal-panel__body">
               <div class="auth-form__group">
-                <label class="auth-form__label">选择节点</label>
-                <select v-model="newPost.node_id" class="input" style="height: 38px">
-                  <option :value="null" disabled>请选择节点</option>
-                  <option v-for="node in allNodes" :key="node.id" :value="node.id">{{ node.name }}</option>
-                </select>
+                <label class="auth-form__label">节点</label>
+                <input class="input" :value="node?.name" disabled style="border: none; background: transparent" />
               </div>
               <div class="auth-form__group">
                 <label class="auth-form__label">标题</label>
@@ -109,7 +107,7 @@
             </div>
             <div class="modal-panel__footer">
               <button class="btn btn--outline btn--sm" @click="showCreateModal = false">取消</button>
-              <button class="btn btn--primary btn--sm" @click="handleCreatePost" :disabled="!newPost.node_id || !newPost.title || !newPost.content || creating">
+              <button class="btn btn--primary btn--sm" @click="handleCreatePost" :disabled="!newPost.title || !newPost.content || creating">
                 <PhCircleNotch v-if="creating" :size="14" class="spin" />
                 <span v-else>发布</span>
               </button>
@@ -122,38 +120,39 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { listPosts, listFeed, createPost, toggleLikePost, listNodes } from '../api'
+import { getNode, getNodePosts, createPost, toggleLikePost } from '../api'
 import {
-  PhPencilSimpleLine, PhThumbsUp, PhClock, PhChatCircle, PhEye,
-  PhHouse, PhCompass, PhNote, PhCircleNotch, PhX
+  PhStack, PhNote, PhClock, PhChatCircle, PhEye, PhThumbsUp,
+  PhPencilSimpleLine, PhCircleNotch, PhX
 } from '@phosphor-icons/vue'
 
+const route = useRoute()
 const auth = useAuthStore()
-const activeTab = ref('all')
-const tabs = [
-  { key: 'all', label: '全部', icon: PhHouse },
-  { key: 'feed', label: '关注', icon: PhCompass },
-]
 
+const node = ref(null)
 const posts = ref([])
 const loading = ref(true)
 const loadingMore = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
+const sort = ref('time')
 const likedPosts = ref(new Set())
-const allNodes = ref([])
 
 const showCreateModal = ref(false)
 const creating = ref(false)
-const newPost = reactive({ node_id: null, title: '', content: '' })
+const newPost = reactive({ title: '', content: '' })
+
+async function fetchNode() {
+  try { const res = await getNode(route.params.id); node.value = res.data } catch (e) { console.error(e) }
+}
 
 async function fetchPosts(reset = true) {
   if (reset) { page.value = 1; posts.value = []; loading.value = true; hasMore.value = true }
   try {
-    const params = { page: page.value, page_size: 20 }
-    const res = activeTab.value === 'feed' ? await listFeed(params) : await listPosts(params)
+    const res = await getNodePosts(route.params.id, { page: page.value, page_size: 20, sort: sort.value })
     const list = res.data?.list || []
     if (reset) posts.value = list; else posts.value.push(...list)
     hasMore.value = posts.value.length < (res.data?.total || 0)
@@ -161,7 +160,7 @@ async function fetchPosts(reset = true) {
   finally { loading.value = false; loadingMore.value = false }
 }
 
-function switchTab(key) { activeTab.value = key; fetchPosts(true) }
+function switchSort(s) { sort.value = s; fetchPosts(true) }
 function loadMore() { page.value++; loadingMore.value = true; fetchPosts(false) }
 
 async function handleLike(post) {
@@ -174,13 +173,12 @@ async function handleLike(post) {
 }
 
 async function handleCreatePost() {
-  if (!newPost.node_id || !newPost.title || !newPost.content) return
+  if (!newPost.title || !newPost.content) return
   creating.value = true
   try {
-    await createPost({ node_id: newPost.node_id, title: newPost.title, content: newPost.content })
-    showCreateModal.value = false
-    newPost.node_id = null; newPost.title = ''; newPost.content = ''
-    fetchPosts(true)
+    await createPost({ node_id: Number(route.params.id), title: newPost.title, content: newPost.content })
+    showCreateModal.value = false; newPost.title = ''; newPost.content = ''
+    fetchPosts(true); fetchNode()
   } catch (e) { alert(e.message || '发帖失败') }
   finally { creating.value = false }
 }
@@ -195,30 +193,13 @@ function formatTime(dateStr) {
   return d.toLocaleDateString('zh-CN')
 }
 
-function formatCount(n) {
-  if (!n) return '0'
-  if (n >= 10000) return (n / 10000).toFixed(1) + 'W'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
-
-onMounted(async () => {
-  await fetchPosts()
-  try { const res = await listNodes(); allNodes.value = res.data?.nodes || [] } catch (e) { /* ignore */ }
-})
+onMounted(() => { fetchNode(); fetchPosts() })
+watch(() => route.params.id, () => { fetchNode(); fetchPosts() })
 </script>
 
 <style scoped>
-.home__header {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
-}
-.home__title { font-size: 26px; }
-
-select.input {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237e7290' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
+.node-header__icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: var(--radius-m); flex-shrink: 0;
 }
 </style>
