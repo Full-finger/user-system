@@ -2,8 +2,9 @@
   <div class="auth-page">
     <div class="auth-card card fade-up">
       <div class="auth-card__header">
-        <PhSparkle :size="28" weight="fill" class="auth-card__logo" />
-        <h1 class="auth-card__title font-display">登录 DevMoe</h1>
+        <img v-if="siteConfig.siteLogo" :src="siteConfig.siteLogo" alt="Logo" class="auth-card__logo-img" />
+        <PhSparkle v-else :size="28" weight="fill" class="auth-card__logo" />
+        <h1 class="auth-card__title font-display">登录 {{ siteConfig.siteName }}</h1>
         <p class="auth-card__desc text-3">欢迎回到社区</p>
       </div>
 
@@ -116,6 +117,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { siteConfig } from '../config/site'
 import { sendCode } from '../api'
 import { PhSparkle, PhXCircle, PhCircleNotch, PhEnvelopeSimple } from '@phosphor-icons/vue'
 
@@ -195,5 +197,13 @@ async function handleCodeLogin() {
 
 .auth-card__alt a:hover {
   text-decoration: underline;
+}
+
+.auth-card__logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--radius-s);
+  margin-bottom: 8px;
 }
 </style>

@@ -2,9 +2,10 @@
   <div class="auth-page">
     <div class="auth-card card fade-up">
       <div class="auth-card__header">
-        <PhSparkle :size="28" weight="fill" class="auth-card__logo" />
+        <img v-if="siteConfig.siteLogo" :src="siteConfig.siteLogo" alt="Logo" class="auth-card__logo-img" />
+        <PhSparkle v-else :size="28" weight="fill" class="auth-card__logo" />
         <h1 class="auth-card__title font-display">注册账号</h1>
-        <p class="auth-card__desc text-3">加入 DevMoe 社区</p>
+        <p class="auth-card__desc text-3">加入 {{ siteConfig.siteName }}</p>
       </div>
 
       <!-- 步骤指示器 -->
@@ -153,6 +154,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { siteConfig } from '../config/site'
 import { sendCode, checkUsername } from '../api'
 import { PhSparkle, PhXCircle, PhCheckCircle, PhCircleNotch, PhCheck, PhX } from '@phosphor-icons/vue'
 
@@ -278,6 +280,14 @@ async function handleRegister() {
 <style scoped>
 .auth-card__header {
   margin-bottom: 20px;
+}
+
+.auth-card__logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--radius-s);
+  margin-bottom: 8px;
 }
 
 /* 步骤指示器 */

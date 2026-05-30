@@ -8,8 +8,9 @@
             <PhList :size="20" />
           </button>
           <router-link to="/" class="topbar__logo">
-            <PhSparkle :size="22" weight="fill" />
-            <span class="font-display">DevMoe</span>
+            <img v-if="siteConfig.siteLogo" :src="siteConfig.siteLogo" alt="Logo" class="topbar__logo-img" />
+            <PhSparkle v-else :size="22" weight="fill" />
+            <span class="font-display">{{ siteConfig.siteName }}</span>
           </router-link>
         </div>
 
@@ -18,7 +19,7 @@
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="搜索帖子、用户、标签..."
+            :placeholder="siteConfig.searchPlaceholder"
             class="topbar__search-input"
           />
         </div>
@@ -134,7 +135,7 @@
             <PhMegaphone :size="16" />
             公告
           </h3>
-          <p class="text-3" style="font-size: 13px">欢迎使用 DevMoe 社区！</p>
+          <p class="text-3" style="font-size: 13px">{{ siteConfig.announcement }}</p>
         </div>
       </aside>
     </main>
@@ -155,6 +156,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRouter } from 'vue-router'
+import { siteConfig } from '../config/site'
 
 import {
   PhList, PhSparkle, PhMagnifyingGlass, PhBell, PhEnvelopeSimple,
@@ -272,6 +274,13 @@ onMounted(() => {
   font-size: 18px;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.topbar__logo-img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: var(--radius-s);
 }
 
 .topbar__search {
