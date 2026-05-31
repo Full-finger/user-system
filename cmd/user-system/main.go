@@ -83,6 +83,8 @@ func main() {
 
 	userCtrl := controller.NewUserController(userSvc, captchaSvc)
 	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, likeSvc)
+	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc, likeSvc)
+	followCtrl := controller.NewFollowController(followSvc, likeSvc)
 
 	e := echo.New()
 	e.Validator = validator.New()
@@ -113,7 +115,7 @@ func main() {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	router.Setup(e, userCtrl, postCtrl, cfg, rdb)
+	router.Setup(e, userCtrl, postCtrl, nodeCtrl, followCtrl, cfg, rdb)
 
 	log.Info("服务启动", zap.String("port", cfg.Server.Port))
 	go func() {
