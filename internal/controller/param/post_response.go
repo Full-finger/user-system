@@ -30,7 +30,7 @@ type MentionResponse struct {
 
 // PostResponse 帖子响应。
 type PostResponse struct {
-	ID         uint              `json:"id"`
+	Code       string            `json:"code"`
 	Title      string            `json:"title"`
 	Content    string            `json:"content"`
 	Node       NodeResponse      `json:"node"`
@@ -54,7 +54,7 @@ type PostListResponse struct {
 
 // PostListEntry 列表中的帖子条目。
 type PostListEntry struct {
-	ID         uint         `json:"id"`
+	Code       string       `json:"code"`
 	Title      string       `json:"title"`
 	Content    string       `json:"content"`
 	Node       NodeResponse `json:"node"`
@@ -112,7 +112,7 @@ func ToMentionResponse(m *model.Mention) MentionResponse {
 func ToPostResponse(p *model.Post, mentions []model.Mention, likedMap map[uint]bool) PostResponse {
 	liked := likedMap != nil && likedMap[p.ID]
 	resp := PostResponse{
-		ID:         p.ID,
+		Code:       p.Code,
 		Title:      p.Title,
 		Content:    p.Content,
 		Node:       ToNodeResponse(&p.Node),
@@ -133,7 +133,7 @@ func ToPostResponse(p *model.Post, mentions []model.Mention, likedMap map[uint]b
 func toPostListEntry(p *model.Post, likedMap map[uint]bool) PostListEntry {
 	liked := likedMap != nil && likedMap[p.ID]
 	return PostListEntry{
-		ID:         p.ID,
+		Code:       p.Code,
 		Title:      p.Title,
 		Content:    p.Content,
 		Node:       ToNodeResponse(&p.Node),

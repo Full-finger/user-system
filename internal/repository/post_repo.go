@@ -10,6 +10,7 @@ import (
 type PostRepository interface {
 	Create(ctx context.Context, post *model.Post) error
 	FindByID(ctx context.Context, id uint) (*model.Post, error)
+	FindByCode(ctx context.Context, code string) (*model.Post, error)
 	Delete(ctx context.Context, id uint) error
 	FindByUserID(ctx context.Context, userID uint, page, size int) ([]model.Post, int64, error)
 	FindPage(ctx context.Context, page, size int) ([]model.Post, int64, error)

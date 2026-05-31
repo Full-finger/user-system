@@ -9,6 +9,7 @@ import (
 // Post 帖子模型，支持软删除。
 type Post struct {
 	ID         uint           `json:"id" gorm:"primaryKey"`
+	Code       string         `json:"code" gorm:"type:varchar(8);uniqueIndex;not null"`
 	UserID     uint           `json:"user_id" gorm:"index;not null"`
 	NodeID     uint           `json:"node_id" gorm:"index;not null"`
 	Title      string         `json:"title" gorm:"size:200;not null"`

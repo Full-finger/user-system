@@ -27,6 +27,14 @@ func (r *postRepoGorm) FindByID(ctx context.Context, id uint) (*model.Post, erro
 	return &post, nil
 }
 
+func (r *postRepoGorm) FindByCode(ctx context.Context, code string) (*model.Post, error) {
+	var post model.Post
+	if err := r.db.WithContext(ctx).Preload("User").Preload("Node").Where("code = ?", code).First(&post).Error; err != nil {
+		return nil, err
+	}
+	return &post, nil
+}
+
 func (r *postRepoGorm) Delete(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Delete(&model.Post{}, id).Error
 }

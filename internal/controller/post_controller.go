@@ -120,11 +120,11 @@ func (ctrl *PostController) DeletePost(c echo.Context) error {
 		return apperror.Unauthorized("未认证")
 	}
 	role, _ := c.Get("role").(string)
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
+	code := c.Param("id")
+	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	if err := ctrl.postSvc.DeletePost(c.Request().Context(), userID, uint(id), role == "admin"); err != nil {
+	if err := ctrl.postSvc.DeletePost(c.Request().Context(), userID, code, role == "admin"); err != nil {
 		return err
 	}
 	return success(c, nil)
@@ -132,11 +132,11 @@ func (ctrl *PostController) DeletePost(c echo.Context) error {
 
 // GetPost 查看帖子详情。
 func (ctrl *PostController) GetPost(c echo.Context) error {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
+	code := c.Param("id")
+	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	post, mentions, err := ctrl.postSvc.GetPost(c.Request().Context(), uint(id))
+	post, mentions, err := ctrl.postSvc.GetPost(c.Request().Context(), code)
 	if err != nil {
 		return err
 	}
@@ -197,11 +197,11 @@ func (ctrl *PostController) ToggleLike(c echo.Context) error {
 	if !ok {
 		return apperror.Unauthorized("未认证")
 	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
+	code := c.Param("id")
+	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	liked, err := ctrl.postSvc.ToggleLike(c.Request().Context(), userID, uint(id))
+	liked, err := ctrl.postSvc.ToggleLike(c.Request().Context(), userID, code)
 	if err != nil {
 		return err
 	}

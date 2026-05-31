@@ -3,21 +3,23 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
+	"github.com/full-finger/user-system/pkg/base62"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // PostService 帖子业务服务。
 type PostService struct {
-	postRepo    repository.PostRepository
-	likeRepo    repository.LikeRepository
-	nodeRepo    repository.NodeRepository
-	nodeSvc     *NodeService
-	log         *zap.Logger
+	postRepo repository.PostRepository
+	likeRepo repository.LikeRepository
+	nodeRepo repository.NodeRepository
+	nodeSvc  *NodeService
+	log      *zap.Logger
 }
 
 func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeSvc *NodeService, log *zap.Logger) *PostService {
@@ -33,7 +35,13 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 		return nil, apperror.Internal("查询节点失败")
 	}
 
+	code, err := s.generateUniqueCode(ctx)
+	if err != nil {
+		s.log.Error("生成帖子code失败", zap.Error(err))
+		return nil, apperror.Internal("发帖失败")
+	}
 	post := &model.Post{
+		Code:    code,
 		UserID:  userID,
 		NodeID:  nodeID,
 		Title:   title,
@@ -54,8 +62,8 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 }
 
 // DeletePost 删帖，仅作者或管理员可删除。
-func (s *PostService) DeletePost(ctx context.Context, userID uint, postID uint, isAdmin bool) error {
-	post, err := s.postRepo.FindByID(ctx, postID)
+func (s *PostService) DeletePost(ctx context.Context, userID uint, code string, isAdmin bool) error {
+	post, err := s.postRepo.FindByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperror.NotFound("帖子不存在")
@@ -66,7 +74,7 @@ func (s *PostService) DeletePost(ctx context.Context, userID uint, postID uint, 
 	if post.UserID != userID && !isAdmin {
 		return apperror.Forbidden("无权删除此帖子")
 	}
-	if err := s.postRepo.Delete(ctx, postID); err != nil {
+	if err := s.postRepo.Delete(ctx, post.ID); err != nil {
 		s.log.Error("删帖失败", zap.Error(err))
 		return apperror.Internal("删帖失败")
 	}
@@ -75,8 +83,8 @@ func (s *PostService) DeletePost(ctx context.Context, userID uint, postID uint, 
 }
 
 // GetPost 查看帖子详情（自增浏览数）。
-func (s *PostService) GetPost(ctx context.Context, postID uint) (*model.Post, []model.Mention, error) {
-	post, err := s.postRepo.FindByID(ctx, postID)
+func (s *PostService) GetPost(ctx context.Context, code string) (*model.Post, []model.Mention, error) {
+	post, err := s.postRepo.FindByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, apperror.NotFound("帖子不存在")
@@ -84,10 +92,10 @@ func (s *PostService) GetPost(ctx context.Context, postID uint) (*model.Post, []
 		s.log.Error("查询帖子失败", zap.Error(err))
 		return nil, nil, apperror.Internal("查询失败")
 	}
-	_ = s.postRepo.IncrViewCount(ctx, postID)
+	_ = s.postRepo.IncrViewCount(ctx, post.ID)
 	post.ViewCount++
 
-	mentions, _ := s.nodeSvc.GetMentions(ctx, postID)
+	mentions, _ := s.nodeSvc.GetMentions(ctx, post.ID)
 	return post, mentions, nil
 }
 
@@ -141,34 +149,35 @@ func (s *PostService) ListFeed(ctx context.Context, followingIDs []uint, page, s
 }
 
 // ToggleLike 点赞/取消点赞，返回当前是否已赞。
-func (s *PostService) ToggleLike(ctx context.Context, userID, postID uint) (bool, error) {
-	if _, err := s.postRepo.FindByID(ctx, postID); err != nil {
+func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) (bool, error) {
+	post, err := s.postRepo.FindByCode(ctx, code)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, apperror.NotFound("帖子不存在")
 		}
 		return false, apperror.Internal("查询失败")
 	}
 
-	liked, err := s.likeRepo.Exists(ctx, userID, postID)
+	liked, err := s.likeRepo.Exists(ctx, userID, post.ID)
 	if err != nil {
 		s.log.Error("查询点赞状态失败", zap.Error(err))
 		return false, apperror.Internal("查询失败")
 	}
 
 	if liked {
-		if err := s.likeRepo.Delete(ctx, userID, postID); err != nil {
+		if err := s.likeRepo.Delete(ctx, userID, post.ID); err != nil {
 			s.log.Error("取消点赞失败", zap.Error(err))
 			return false, apperror.Internal("取消点赞失败")
 		}
-		_ = s.postRepo.DecrLikeCount(ctx, postID)
+		_ = s.postRepo.DecrLikeCount(ctx, post.ID)
 		return false, nil
 	}
 
-	if err := s.likeRepo.Create(ctx, &model.Like{UserID: userID, PostID: postID}); err != nil {
+	if err := s.likeRepo.Create(ctx, &model.Like{UserID: userID, PostID: post.ID}); err != nil {
 		s.log.Error("点赞失败", zap.Error(err))
 		return false, apperror.Internal("点赞失败")
 	}
-	_ = s.postRepo.IncrLikeCount(ctx, postID)
+	_ = s.postRepo.IncrLikeCount(ctx, post.ID)
 	return true, nil
 }
 
@@ -180,4 +189,17 @@ func (s *PostService) ListLikedPosts(ctx context.Context, userID uint, page, siz
 		return nil, 0, apperror.Internal("查询失败")
 	}
 	return likes, total, nil
+}
+
+// generateUniqueCode 生成唯一 base62 code，最多重试 5 次。
+func (s *PostService) generateUniqueCode(ctx context.Context) (string, error) {
+	const maxRetry = 5
+	for i := 0; i < maxRetry; i++ {
+		code := base62.Random(8)
+		if _, err := s.postRepo.FindByCode(ctx, code); errors.Is(err, gorm.ErrRecordNotFound) {
+			return code, nil
+		}
+		s.log.Warn("帖子code碰撞，重试", zap.String("code", code), zap.Int("attempt", i+1))
+	}
+	return "", fmt.Errorf("生成唯一code失败，已重试%d次", maxRetry)
 }
