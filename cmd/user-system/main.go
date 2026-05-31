@@ -46,7 +46,11 @@ func main() {
 		log.Sync()
 		os.Exit(1)
 	}
-	db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{})
+	if cfg.Server.Env != "production" {
+		db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{})
+	} else {
+		log.Warn("生产环境跳过 AutoMigrate，请使用迁移工具管理数据库结构")
+	}
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     cfg.Redis.Addr,

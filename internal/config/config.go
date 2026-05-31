@@ -121,5 +121,10 @@ func (c *Config) Validate() error {
 	if c.RateLimit.MaxRequest <= 0 {
 		return fmt.Errorf("%w: rate_limit max_requests 必须大于 0", ErrInvalidConfig)
 	}
+	switch c.Server.Env {
+	case "development", "test", "production":
+	default:
+		return fmt.Errorf("%w: server.env 必须是 development/test/production 之一", ErrInvalidConfig)
+	}
 	return nil
 }
