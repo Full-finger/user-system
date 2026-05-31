@@ -67,7 +67,7 @@ func (r *userRepoGorm) FindPage(ctx context.Context, page, size int) ([]model.Us
 		return nil, 0, err
 	}
 	offset := (page - 1) * size
-	if err := r.db.WithContext(ctx).Offset(offset).Limit(size).Find(&users).Error; err != nil {
+	if err := r.db.WithContext(ctx).Order("id desc").Offset(offset).Limit(size).Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
 	return users, total, nil
