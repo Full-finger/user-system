@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"net/http"
 
+	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/repository"
 	"go.uber.org/zap"
 )
@@ -22,7 +24,7 @@ func (s *LikeService) FindLikedPostIDs(ctx context.Context, userID uint, postIDs
 	m, err := s.likeRepo.FindLikedPostIDs(ctx, userID, postIDs)
 	if err != nil {
 		s.log.Error("批量查询点赞状态失败", zap.Error(err))
-		return nil, err
+		return nil, apperror.NewWrap(http.StatusInternalServerError, "查询点赞状态失败", err)
 	}
 	return m, nil
 }
