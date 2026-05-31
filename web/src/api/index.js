@@ -78,19 +78,19 @@ export function bindEmail(data) {
 
 // ---- Admin ----
 export function listUsers(params) {
-  return api.get('/users', { params })
+  return api.get('/admin/users', { params })
 }
 
 export function getUser(id) {
-  return api.get(`/users/${id}`)
+  return api.get(`/admin/users/${id}`)
 }
 
 export function updateUser(id, data) {
-  return api.put(`/users/${id}`, data)
+  return api.put(`/admin/users/${id}`, data)
 }
 
 export function deleteUser(id) {
-  return api.delete(`/users/${id}`)
+  return api.delete(`/admin/users/${id}`)
 }
 
 // ---- Nodes ----
