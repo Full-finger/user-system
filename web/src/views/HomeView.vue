@@ -29,15 +29,15 @@
     <!-- Posts -->
     <div v-else-if="posts.length > 0">
       <div
-        v-for="(post, i) in posts" :key="post.id"
+        v-for="(post, i) in posts" :key="post.code"
         class="post-card card fade-up"
         :style="{ animationDelay: (80 + i * 40) + 'ms' }"
-        @click="$router.push({ name: 'PostDetail', params: { id: post.id } })"
+        @click="$router.push({ name: 'PostDetail', params: { id: post.code } })"
       >
         <div class="post-card__bar" :style="{ background: post.node?.color || 'var(--accent)' }"></div>
         <div class="post-card__vote">
           <button class="post-card__vote-btn" @click.stop="handleLike(post)">
-            <PhThumbsUp :size="16" :weight="likedPosts.has(post.id) ? 'fill' : 'regular'" />
+            <PhThumbsUp :size="16" :weight="likedPosts.has(post.code) ? 'fill' : 'regular'" />
           </button>
           <span class="font-display" style="font-size: 14px; font-weight: 600">{{ post.like_count }}</span>
         </div>
@@ -159,10 +159,10 @@ async function fetchPosts(reset = true) {
     const list = res.data?.list || []
     if (reset) {
       posts.value = list
-      likedPosts.value = new Set(list.filter(p => p.liked).map(p => p.id))
+      likedPosts.value = new Set(list.filter(p => p.liked).map(p => p.code))
     } else {
       posts.value.push(...list)
-      list.forEach(p => { if (p.liked) likedPosts.value.add(p.id) })
+      list.forEach(p => { if (p.liked) likedPosts.value.add(p.code) })
     }
     hasMore.value = posts.value.length < (res.data?.total || 0)
   } catch (e) { toast.error(e.message) }
@@ -175,9 +175,9 @@ function loadMore() { page.value++; loadingMore.value = true; fetchPosts(false) 
 async function handleLike(post) {
   if (!auth.isLoggedIn) return
   try {
-    const res = await toggleLikePost(post.id)
-    if (res.data?.liked) { likedPosts.value.add(post.id); post.like_count++ }
-    else { likedPosts.value.delete(post.id); post.like_count = Math.max(0, post.like_count - 1) }
+    const res = await toggleLikePost(post.code)
+    if (res.data?.liked) { likedPosts.value.add(post.code); post.like_count++ }
+    else { likedPosts.value.delete(post.code); post.like_count = Math.max(0, post.like_count - 1) }
   } catch (e) { toast.error(e.message) }
 }
 

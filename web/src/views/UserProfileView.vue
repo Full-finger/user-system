@@ -65,10 +65,10 @@
       <!-- Posts tab -->
       <div v-if="activeTab === 'posts'">
         <div v-if="userPosts.length > 0">
-          <div v-for="(p, i) in userPosts" :key="p.id"
+          <div v-for="(p, i) in userPosts" :key="p.code"
             class="post-card card fade-up"
             :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { id: p.id } })"
+            @click="$router.push({ name: 'PostDetail', params: { id: p.code } })"
           >
             <div class="post-card__bar" :style="{ background: p.node?.color || 'var(--accent)' }"></div>
             <div class="post-card__vote">
@@ -102,10 +102,10 @@
       <!-- Likes tab -->
       <div v-if="activeTab === 'likes'">
         <div v-if="userLikes.length > 0">
-          <div v-for="(item, i) in userLikes" :key="item.post.id"
+          <div v-for="(item, i) in userLikes" :key="item.post.code"
             class="post-card card fade-up"
             :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { id: item.post.id } })"
+            @click="$router.push({ name: 'PostDetail', params: { id: item.post.code } })"
           >
             <div class="post-card__bar" :style="{ background: item.post.node?.color || 'var(--accent)' }"></div>
             <div class="post-card__content">
