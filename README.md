@@ -1,4 +1,14 @@
-# USER-SYSTEM
+# user-system
+
+Go + Vue3 用户系统，包含用户认证、帖子、节点、关注、点赞等功能。
+
+**技术栈：** Go / Echo / GORM / PostgreSQL / Redis / Vue3 / Pinia / Vite
+
+## 前置依赖
+
+- Go 1.26+
+- Node.js 18+
+- Docker & Docker Compose（用于 PostgreSQL + Redis）
 
 ## 快速启动
 
@@ -6,8 +16,27 @@
 git clone git@github.com:Full-finger/user-system.git
 cd user-system
 
-./scripts/init.sh #生成随机密钥
-cd deployments && docker compose up -d && cd .. #启动docker
+make init          # 生成随机密钥的配置文件
+make docker-up     # 启动 PostgreSQL + Redis
+make run           # 启动后端（默认 :1323）
 
-make run #启动服务
+# 前端（另开终端）
+make web           # 安装依赖（首次）
+make web-dev       # 启动开发服务器（默认 :5173）
 ```
+
+## 常用命令
+
+```bash
+make help          # 查看所有可用命令
+make dev           # 热重载开发模式（需要 air）
+make test          # 运行测试
+make lint          # 代码检查
+make build         # 编译后端
+make all           # 完整构建（lint + 后端 + 前端）
+make cleanall      # 清理全部构建产物
+```
+
+## API 文档
+
+见 [docs/openapi.yaml](docs/openapi.yaml)，可用 Swagger UI 等工具查看。

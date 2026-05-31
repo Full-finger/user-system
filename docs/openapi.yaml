@@ -1,26 +1,49 @@
 openapi: 3.0.3
 info:
-  title: 用户管理系统 API
+  title: user-system API
   version: 1.0.0
-  description: 用户注册、登录、个人信息管理及管理员用户管理接口。
+  description: 用户认证、帖子、节点、关注、点赞及管理员接口。
 
 servers:
-  - url: http://localhost:1323/api
+  - url: http://localhost:1323
     description: 本地开发
 
 security:
   - BearerToken: []
 
 tags:
-  - name: 公开接口
-  - name: 认证接口
-  - name: 管理员接口
+  - name: 健康
+  - name: 认证
+  - name: 用户
+  - name: 帖子
+  - name: 节点
+  - name: 关注
+  - name: 管理员
 
 paths:
-  /check-username:
+  /health:
     get:
-      tags: [公开接口]
+      tags: [健康]
+      summary: 健康检查
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── 认证 ──────────────────────────────────────────────
+  /api/check-username:
+    get:
+      tags: [认证]
       summary: 检查用户名是否可用
+      security: []
       parameters:
         - name: username
           in: query
@@ -28,7 +51,6 @@ paths:
           schema:
             type: string
             minLength: 3
-          description: 待检查的用户名
       responses:
         "200":
           description: 成功
@@ -48,9 +70,9 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /register:
+  /api/register:
     post:
-      tags: [公开接口]
+      tags: [认证]
       summary: 用户注册
       security: []
       requestBody:
@@ -61,7 +83,7 @@ paths:
               $ref: "#/components/schemas/RegisterRequest"
       responses:
         "200":
-          description: 注册成功，返回用户信息
+          description: 注册成功
           content:
             application/json:
               schema:
@@ -74,9 +96,9 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /login:
+  /api/login:
     post:
-      tags: [公开接口]
+      tags: [认证]
       summary: 用户名/邮箱密码登录
       security: []
       requestBody:
@@ -102,11 +124,11 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /send-code:
+  /api/send-code:
     post:
-      tags: [公开接口]
+      tags: [认证]
       summary: 发送邮箱验证码
-      description: 有频率限制，默认 1 分钟内不可重复发送。
+      description: 有频率限制。
       security: []
       requestBody:
         required: true
@@ -126,9 +148,9 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
-  /code-login:
+  /api/code-login:
     post:
-      tags: [公开接口]
+      tags: [认证]
       summary: 验证码登录
       security: []
       requestBody:
@@ -154,9 +176,10 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /profile:
+  # ── 用户 ──────────────────────────────────────────────
+  /api/profile:
     get:
-      tags: [认证接口]
+      tags: [用户]
       summary: 获取个人信息
       responses:
         "200":
@@ -174,7 +197,7 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
     put:
-      tags: [认证接口]
+      tags: [用户]
       summary: 修改个人信息
       description: 普通用户不能修改自己的角色。
       requestBody:
@@ -200,9 +223,9 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /profile/email:
+  /api/profile/email:
     put:
-      tags: [认证接口]
+      tags: [用户]
       summary: 绑定邮箱
       requestBody:
         required: true
@@ -222,10 +245,11 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /users/{username}:
+  /api/users/{username}:
     get:
-      tags: [公开接口]
+      tags: [用户]
       summary: 获取用户公开资料
+      description: 可选鉴权，带 token 时返回当前用户是否已关注该用户。
       security: []
       parameters:
         - $ref: "#/components/parameters/Username"
@@ -244,26 +268,16 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /users/{username}/posts:
+  /api/users/{username}/posts:
     get:
-      tags: [公开接口]
+      tags: [用户]
       summary: 获取某用户的帖子列表
+      description: 可选鉴权，带 token 时返回 liked 状态。
       security: []
       parameters:
         - $ref: "#/components/parameters/Username"
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: 成功
@@ -279,26 +293,16 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /users/{username}/likes:
+  /api/users/{username}/likes:
     get:
-      tags: [公开接口]
+      tags: [用户]
       summary: 获取某用户点赞过的帖子
+      description: 可选鉴权。
       security: []
       parameters:
         - $ref: "#/components/parameters/Username"
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: 成功
@@ -314,26 +318,16 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /users/{username}/followers:
+  # ── 帖子 ──────────────────────────────────────────────
+  /api/posts:
     get:
-      tags: [公开接口]
-      summary: 获取某用户的粉丝列表
+      tags: [帖子]
+      summary: 获取帖子列表
+      description: 可选鉴权，带 token 时返回 liked 状态。
       security: []
       parameters:
-        - $ref: "#/components/parameters/Username"
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: 成功
@@ -345,30 +339,42 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: "#/components/schemas/FollowListResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                        $ref: "#/components/schemas/PostListResponse"
 
-  /users/{username}/followings:
+    post:
+      tags: [帖子]
+      summary: 创建帖子
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostRequest"
+      responses:
+        "200":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PostResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/posts/{id}:
     get:
-      tags: [公开接口]
-      summary: 获取某用户的关注列表
+      tags: [帖子]
+      summary: 获取帖子详情
+      description: 可选鉴权，带 token 时返回 liked 状态。
       security: []
       parameters:
-        - $ref: "#/components/parameters/Username"
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/PostId"
       responses:
         "200":
           description: 成功
@@ -380,13 +386,196 @@ paths:
                   - type: object
                     properties:
                       data:
-                        $ref: "#/components/schemas/FollowListResponse"
+                        $ref: "#/components/schemas/PostResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /users/{username}/follow:
+    delete:
+      tags: [帖子]
+      summary: 删除帖子
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/posts/{id}/like:
     put:
-      tags: [认证接口]
+      tags: [帖子]
+      summary: 点赞/取消点赞
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          liked:
+                            type: boolean
+                            example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/feed:
+    get:
+      tags: [帖子]
+      summary: 获取关注用户的帖子流
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PostListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── 节点 ──────────────────────────────────────────────
+  /api/nodes:
+    get:
+      tags: [节点]
+      summary: 获取节点列表
+      security: []
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NodeListResponse"
+
+  /api/nodes/{id}:
+    get:
+      tags: [节点]
+      summary: 获取节点详情
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NodeResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/nodes/{id}/posts:
+    get:
+      tags: [节点]
+      summary: 获取节点下的帖子列表
+      description: 可选鉴权，带 token 时返回 liked 状态。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PostListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── 关注 ──────────────────────────────────────────────
+  /api/users/{username}/followers:
+    get:
+      tags: [关注]
+      summary: 获取某用户的粉丝列表
+      description: 可选鉴权。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/FollowListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{username}/followings:
+    get:
+      tags: [关注]
+      summary: 获取某用户的关注列表
+      description: 可选鉴权。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/FollowListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{username}/follow:
+    put:
+      tags: [关注]
       summary: 关注/取消关注
       parameters:
         - $ref: "#/components/parameters/Username"
@@ -411,26 +600,14 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /admin/users:
+  # ── 管理员 ────────────────────────────────────────────
+  /api/admin/users:
     get:
-      tags: [管理员接口]
+      tags: [管理员]
       summary: 获取用户列表
       parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-          description: 页码
-        - name: page_size
-          in: query
-          schema:
-            type: integer
-            default: 20
-            minimum: 1
-            maximum: 100
-          description: 每页数量
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: 成功
@@ -448,9 +625,9 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /users/{id}:
+  /api/admin/users/{id}:
     get:
-      tags: [管理员接口]
+      tags: [管理员]
       summary: 获取指定用户
       parameters:
         - $ref: "#/components/parameters/UserId"
@@ -476,7 +653,7 @@ paths:
           $ref: "#/components/responses/NotFound"
 
     put:
-      tags: [管理员接口]
+      tags: [管理员]
       summary: 更新指定用户
       parameters:
         - $ref: "#/components/parameters/UserId"
@@ -508,9 +685,9 @@ paths:
           $ref: "#/components/responses/NotFound"
 
     delete:
-      tags: [管理员接口]
+      tags: [管理员]
       summary: 删除指定用户
-      description: 软删除，数据可恢复。
+      description: 软删除。
       parameters:
         - $ref: "#/components/parameters/UserId"
       responses:
@@ -529,6 +706,26 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/admin/posts/{id}:
+    delete:
+      tags: [管理员]
+      summary: 管理员删除帖子
+      parameters:
+        - $ref: "#/components/parameters/PostId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     BearerToken:
@@ -537,13 +734,30 @@ components:
       bearerFormat: JWT
 
   parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+
+    PageSize:
+      name: page_size
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
     UserId:
       name: id
       in: path
       required: true
       schema:
         type: integer
-      description: 用户 ID（管理员接口使用）
+      description: 用户 ID
 
     Username:
       name: username
@@ -553,7 +767,22 @@ components:
         type: string
         minLength: 3
         maxLength: 30
-      description: 用户名（公开接口使用）
+
+    PostId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 帖子 ID
+
+    NodeId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 节点 ID
 
   schemas:
     ApiResponse:
@@ -568,6 +797,7 @@ components:
         data:
           description: 响应数据，可能为 null
 
+    # ── User ────────────────────────────────────────────
     UserResponse:
       type: object
       properties:
@@ -577,6 +807,9 @@ components:
         username:
           type: string
           example: zhangsan
+        nickname:
+          type: string
+          example: 张三
         email:
           type: string
           nullable: true
@@ -607,6 +840,39 @@ components:
           type: integer
           example: 20
 
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: zhangsan
+        nickname:
+          type: string
+          example: 张三
+        role:
+          type: string
+          enum: [admin, user]
+          example: user
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+        post_count:
+          type: integer
+          example: 10
+        follower_count:
+          type: integer
+          example: 100
+        following_count:
+          type: integer
+          example: 50
+        followed:
+          type: boolean
+          example: false
+
     LoginResponse:
       type: object
       properties:
@@ -614,6 +880,7 @@ components:
           type: string
           example: "eyJhbGciOiJIUzI1NiIs..."
 
+    # ── Auth Requests ───────────────────────────────────
     RegisterRequest:
       type: object
       required: [username, password, email, code]
@@ -627,6 +894,9 @@ components:
           type: string
           minLength: 6
           example: "123456"
+        nickname:
+          type: string
+          example: 张三
         email:
           type: string
           format: email
@@ -694,6 +964,9 @@ components:
           minLength: 6
           description: 新密码
           example: "654321"
+        nickname:
+          type: string
+          example: 张三
 
     UpdateUserRequest:
       type: object
@@ -703,13 +976,191 @@ components:
           minLength: 6
           description: 新密码
           example: "654321"
+        nickname:
+          type: string
+          example: 张三
         role:
           type: string
           enum: [admin, user]
           description: 用户角色
           example: admin
 
-    UserProfileResponse:
+    # ── Post ────────────────────────────────────────────
+    CreatePostRequest:
+      type: object
+      required: [node_id, title, content]
+      properties:
+        node_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          example: "帖子标题"
+        content:
+          type: string
+          minLength: 1
+          example: "帖子内容"
+
+    PostResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "a1b2c3"
+        title:
+          type: string
+          example: "帖子标题"
+        content:
+          type: string
+          example: "帖子内容"
+        node:
+          $ref: "#/components/schemas/NodeResponse"
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        like_count:
+          type: integer
+          example: 10
+        reply_count:
+          type: integer
+          example: 5
+        view_count:
+          type: integer
+          example: 100
+        liked:
+          type: boolean
+          example: false
+        mentions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MentionResponse"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+
+    PostListEntry:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "a1b2c3"
+        title:
+          type: string
+          example: "帖子标题"
+        content:
+          type: string
+          description: 列表中截断至 200 字符
+          example: "帖子内容..."
+        node:
+          $ref: "#/components/schemas/NodeResponse"
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        like_count:
+          type: integer
+          example: 10
+        reply_count:
+          type: integer
+          example: 5
+        view_count:
+          type: integer
+          example: 100
+        liked:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+
+    PostListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/PostListEntry"
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    LikedPostResponse:
+      type: object
+      properties:
+        post:
+          $ref: "#/components/schemas/PostListEntry"
+        liked:
+          type: boolean
+          example: true
+
+    LikedPostListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/LikedPostResponse"
+        total:
+          type: integer
+          example: 50
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    # ── Node ────────────────────────────────────────────
+    NodeResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "技术"
+        slug:
+          type: string
+          example: "tech"
+        desc:
+          type: string
+          example: "技术相关讨论"
+        color:
+          type: string
+          example: "#3b82f6"
+        icon:
+          type: string
+          example: "💬"
+        post_count:
+          type: integer
+          example: 42
+
+    NodeListResponse:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeResponse"
+
+    # ── Follow ──────────────────────────────────────────
+    FollowUserResponse:
       type: object
       properties:
         id:
@@ -721,60 +1172,22 @@ components:
         nickname:
           type: string
           example: 张三
-        role:
-          type: string
-          enum: [admin, user]
-          example: user
+
+    FollowResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        user:
+          $ref: "#/components/schemas/FollowUserResponse"
+        followed:
+          type: boolean
+          example: false
         created_at:
           type: string
           format: date-time
           example: "2026-01-01T00:00:00+08:00"
-        post_count:
-          type: integer
-          example: 10
-        follower_count:
-          type: integer
-          example: 100
-        following_count:
-          type: integer
-          example: 50
-        followed:
-          type: boolean
-          example: false
-
-    PostListResponse:
-      type: object
-      properties:
-        list:
-          type: array
-          items:
-            type: object
-        total:
-          type: integer
-          example: 100
-        page:
-          type: integer
-          example: 1
-        page_size:
-          type: integer
-          example: 20
-
-    LikedPostListResponse:
-      type: object
-      properties:
-        list:
-          type: array
-          items:
-            type: object
-        total:
-          type: integer
-          example: 50
-        page:
-          type: integer
-          example: 1
-        page_size:
-          type: integer
-          example: 20
 
     FollowListResponse:
       type: object
@@ -782,7 +1195,7 @@ components:
         list:
           type: array
           items:
-            type: object
+            $ref: "#/components/schemas/FollowResponse"
         total:
           type: integer
           example: 200
@@ -792,6 +1205,17 @@ components:
         page_size:
           type: integer
           example: 20
+
+    # ── Mention ─────────────────────────────────────────
+    MentionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: lisi
 
   responses:
     BadRequest:

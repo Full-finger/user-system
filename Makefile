@@ -30,7 +30,7 @@ define log
 endef
 
 # ── Phony 声明 ─────────────────────────────────────────────
-.PHONY: help run build dev init test lint fmt clean \
+.PHONY: help run build dev init test lint fmt clean cleanall \
         web web-dev web-build web-clean web-lint \
         docker-up docker-down docker-logs \
         all
