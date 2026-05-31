@@ -77,7 +77,7 @@ func main() {
 	nodeSvc := service.NewNodeService(nodeRepo, userRepo, mentionRepo, log)
 	nodeSvc.SeedNodes(context.Background())
 	userSvc.SeedAdmin(context.Background(), &cfg.Admin)
-	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeSvc, log)
+	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeSvc, db, log)
 	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
 	likeSvc := service.NewLikeService(likeRepo, log)
 

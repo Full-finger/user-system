@@ -19,11 +19,12 @@ type PostService struct {
 	likeRepo repository.LikeRepository
 	nodeRepo repository.NodeRepository
 	nodeSvc  *NodeService
+	txDB     *gorm.DB // 仅用于事务协调，不直接做 CRUD
 	log      *zap.Logger
 }
 
-func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeSvc *NodeService, log *zap.Logger) *PostService {
-	return &PostService{postRepo: postRepo, likeRepo: likeRepo, nodeRepo: nodeRepo, nodeSvc: nodeSvc, log: log}
+func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
+	return &PostService{postRepo: postRepo, likeRepo: likeRepo, nodeRepo: nodeRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
 }
 
 // CreatePost 发帖。
@@ -47,13 +48,21 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 		Title:   title,
 		Content: content,
 	}
-	if err := s.postRepo.Create(ctx, post); err != nil {
-		s.log.Error("发帖失败", zap.Error(err))
+
+	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
+	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(post).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).
+			UpdateColumn("post_count", gorm.Expr("post_count + 1")).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		s.log.Error("发帖事务失败", zap.Error(err))
 		return nil, apperror.Internal("发帖失败")
 	}
-
-	// 节点帖子计数 +1
-	_ = s.nodeRepo.IncrPostCount(ctx, nodeID)
 
 	// 异步解析 @提及（不阻塞主流程）
 	go s.nodeSvc.ParseAndSaveMentions(context.Background(), post.ID, content)
@@ -74,11 +83,21 @@ func (s *PostService) DeletePost(ctx context.Context, userID uint, code string, 
 	if post.UserID != userID && !isAdmin {
 		return apperror.Forbidden("无权删除此帖子")
 	}
-	if err := s.postRepo.Delete(ctx, post.ID); err != nil {
-		s.log.Error("删帖失败", zap.Error(err))
+
+	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
+	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.Post{}, post.ID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ? AND post_count > 0", post.NodeID).
+			UpdateColumn("post_count", gorm.Expr("post_count - 1")).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		s.log.Error("删帖事务失败", zap.Error(err))
 		return apperror.Internal("删帖失败")
 	}
-	_ = s.nodeRepo.DecrPostCount(ctx, post.NodeID)
 	return nil
 }
 
@@ -164,20 +183,31 @@ func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) 
 		return false, apperror.Internal("查询失败")
 	}
 
+	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
 	if liked {
-		if err := s.likeRepo.Delete(ctx, userID, post.ID); err != nil {
-			s.log.Error("取消点赞失败", zap.Error(err))
+		if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Where("user_id = ? AND post_id = ?", userID, post.ID).Delete(&model.Like{}).Error; err != nil {
+				return err
+			}
+			return tx.Model(&model.Post{}).Where("id = ? AND like_count > 0", post.ID).
+				UpdateColumn("like_count", gorm.Expr("like_count - 1")).Error
+		}); err != nil {
+			s.log.Error("取消点赞事务失败", zap.Error(err))
 			return false, apperror.Internal("取消点赞失败")
 		}
-		_ = s.postRepo.DecrLikeCount(ctx, post.ID)
 		return false, nil
 	}
 
-	if err := s.likeRepo.Create(ctx, &model.Like{UserID: userID, PostID: post.ID}); err != nil {
-		s.log.Error("点赞失败", zap.Error(err))
+	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&model.Like{UserID: userID, PostID: post.ID}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.Post{}).Where("id = ?", post.ID).
+			UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
+	}); err != nil {
+		s.log.Error("点赞事务失败", zap.Error(err))
 		return false, apperror.Internal("点赞失败")
 	}
-	_ = s.postRepo.IncrLikeCount(ctx, post.ID)
 	return true, nil
 }
 
