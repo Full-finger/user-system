@@ -57,6 +57,8 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 
 func randMember() string {
 	b := make([]byte, 8)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
 	return hex.EncodeToString(b)
 }
