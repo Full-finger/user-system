@@ -39,7 +39,7 @@ const routes = [
         component: () => import('../views/PostView.vue')
       },
       {
-        path: 'users/:id',
+        path: 'users/:username',
         name: 'UserProfile',
         component: () => import('../views/UserProfileView.vue')
       },

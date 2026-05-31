@@ -135,7 +135,7 @@
       <!-- Followers tab -->
       <div v-if="activeTab === 'followers'">
         <div v-if="followers.length > 0" class="user-list">
-          <div v-for="f in followers" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { id: f.user.id } })">
+          <div v-for="f in followers" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { username: f.user.username } })">
             <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
             <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
@@ -153,7 +153,7 @@
       <!-- Followings tab -->
       <div v-if="activeTab === 'followings'">
         <div v-if="followings.length > 0" class="user-list">
-          <div v-for="f in followings" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { id: f.user.id } })">
+          <div v-for="f in followings" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { username: f.user.username } })">
             <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
             <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
@@ -221,9 +221,9 @@ const PAGE_SIZE = 20
 
 async function fetchAll() {
   loading.value = true
-  const userId = route.params.id
+  const username = route.params.username
   try {
-    const res = await getUserProfile(userId)
+    const res = await getUserProfile(username)
     profile.value = res.data
     followed.value = res.data?.followed || false
   } catch (e) {
@@ -236,7 +236,7 @@ async function fetchAll() {
 }
 
 async function loadTab(tab, reset = true) {
-  const userId = route.params.id
+  const username = route.params.username
   if (reset) {
     tabPage[tab] = 1
     tabHasMore[tab] = true
@@ -248,25 +248,25 @@ async function loadTab(tab, reset = true) {
   try {
     const params = { page: tabPage[tab], page_size: PAGE_SIZE }
     if (tab === 'posts') {
-      const res = await listUserPosts(userId, params)
+      const res = await listUserPosts(username, params)
       const list = res.data?.list || []
       if (reset) userPosts.value = list; else userPosts.value.push(...list)
       tabTotal.posts = res.data?.total || 0
       tabHasMore.posts = userPosts.value.length < tabTotal.posts
     } else if (tab === 'likes') {
-      const res = await listUserLikes(userId, params)
+      const res = await listUserLikes(username, params)
       const list = res.data?.list || []
       if (reset) userLikes.value = list; else userLikes.value.push(...list)
       tabTotal.likes = res.data?.total || 0
       tabHasMore.likes = userLikes.value.length < tabTotal.likes
     } else if (tab === 'followers') {
-      const res = await getFollowers(userId, params)
+      const res = await getFollowers(username, params)
       const list = res.data?.list || []
       if (reset) followers.value = list; else followers.value.push(...list)
       tabTotal.followers = res.data?.total || 0
       tabHasMore.followers = followers.value.length < tabTotal.followers
     } else if (tab === 'followings') {
-      const res = await getFollowings(userId, params)
+      const res = await getFollowings(username, params)
       const list = res.data?.list || []
       if (reset) followings.value = list; else followings.value.push(...list)
       tabTotal.followings = res.data?.total || 0
@@ -292,7 +292,7 @@ function loadTabMore(tab) {
 async function handleFollow() {
   if (!auth.isLoggedIn || !profile.value) return
   try {
-    const res = await toggleFollow(profile.value.id)
+    const res = await toggleFollow(profile.value.username)
     followed.value = res.data?.followed
     if (followed.value) { profile.value.follower_count++; toast.success('已关注') }
     else { profile.value.follower_count = Math.max(0, profile.value.follower_count - 1); toast.success('已取消关注') }
@@ -314,7 +314,7 @@ function formatTime(dateStr) {
 }
 
 onMounted(fetchAll)
-watch(() => route.params.id, fetchAll)
+watch(() => route.params.username, fetchAll)
 </script>
 
 <style scoped>

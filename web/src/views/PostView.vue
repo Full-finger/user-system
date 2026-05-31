@@ -29,7 +29,7 @@
         <div class="post-detail__meta text-4">
           <span class="post-card__author">
             <span class="post-card__online-dot" style="background: var(--text-4)"></span>
-            <router-link v-if="post.user" :to="{ name: 'UserProfile', params: { id: post.user.id } }" style="font-weight: 500">{{ post.user.nickname || post.user.username }}</router-link>
+            <router-link v-if="post.user" :to="{ name: 'UserProfile', params: { username: post.user.username } }" style="font-weight: 500">{{ post.user.nickname || post.user.username }}</router-link>
             <span v-else>匿名</span>
           </span>
           <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(post.created_at) }}</span>

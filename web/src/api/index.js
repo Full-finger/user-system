@@ -131,30 +131,30 @@ export function listFeed(params) {
   return api.get('/feed', { params })
 }
 
-// ---- User profile (public) ----
-export function getUserProfile(userId) {
-  return api.get(`/users/${userId}`)
+// ---- User profile (public, by username) ----
+export function getUserProfile(username) {
+  return api.get(`/users/${username}`)
 }
 
-export function listUserPosts(userId, params) {
-  return api.get(`/users/${userId}/posts`, { params })
+export function listUserPosts(username, params) {
+  return api.get(`/users/${username}/posts`, { params })
 }
 
-export function listUserLikes(userId, params) {
-  return api.get(`/users/${userId}/likes`, { params })
+export function listUserLikes(username, params) {
+  return api.get(`/users/${username}/likes`, { params })
 }
 
 // ---- Follow ----
-export function toggleFollow(userId) {
-  return api.put(`/users/${userId}/follow`)
+export function toggleFollow(username) {
+  return api.put(`/users/${username}/follow`)
 }
 
-export function getFollowers(userId, params) {
-  return api.get(`/users/${userId}/followers`, { params })
+export function getFollowers(username, params) {
+  return api.get(`/users/${username}/followers`, { params })
 }
 
-export function getFollowings(userId, params) {
-  return api.get(`/users/${userId}/followings`, { params })
+export function getFollowings(username, params) {
+  return api.get(`/users/${username}/followings`, { params })
 }
 
 export default api
