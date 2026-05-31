@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 
@@ -38,7 +39,7 @@ func (s *NodeService) ListNodes(ctx context.Context) ([]model.Node, error) {
 func (s *NodeService) GetNode(ctx context.Context, id uint) (*model.Node, error) {
 	node, err := s.nodeRepo.FindByID(ctx, id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperror.NotFound("节点不存在")
 		}
 		s.log.Error("查询节点失败", zap.Error(err))
