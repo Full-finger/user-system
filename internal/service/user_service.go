@@ -186,6 +186,40 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 	return s.GetProfile(ctx, user.ID)
 }
 
+// SeedAdmin 当数据库中不存在任何 admin 用户时，使用配置信息创建一个。
+func (s *UserService) SeedAdmin(ctx context.Context, cfg *config.AdminConfig) {
+	if cfg == nil || cfg.Username == "" || cfg.Password == "" {
+		return
+	}
+	exists, err := s.repo.ExistsByRole(ctx, "admin")
+	if err != nil {
+		s.log.Error("检查 admin 用户失败", zap.Error(err))
+		return
+	}
+	if exists {
+		return
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(cfg.Password), bcrypt.DefaultCost)
+	if err != nil {
+		s.log.Error("admin 密码加密失败", zap.Error(err))
+		return
+	}
+	user := &model.User{
+		Username: cfg.Username,
+		Nickname: cfg.Username,
+		Password: string(hashed),
+		Role:     "admin",
+	}
+	if cfg.Email != "" {
+		user.Email = &cfg.Email
+	}
+	if err := s.repo.Create(ctx, user); err != nil {
+		s.log.Error("创建 admin 用户失败", zap.Error(err))
+		return
+	}
+	s.log.Info("已自动创建 admin 用户", zap.String("username", cfg.Username))
+}
+
 // generateToken 签发 HS256 JWT，payload 包含 user_id、username、role。
 func (s *UserService) generateToken(user *model.User) (string, error) {
 	claims := jwt.MapClaims{

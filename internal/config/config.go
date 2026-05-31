@@ -22,6 +22,7 @@ type Config struct {
 	SMTP      SMTPConfig       `yaml:"smtp"`
 	Captcha   CaptchaConfig    `yaml:"captcha"`
 	RateLimit RateLimitConfig  `yaml:"rate_limit"`
+	Admin     AdminConfig      `yaml:"admin"`
 	Log       logger.LogConfig `yaml:"log"`
 }
 
@@ -79,6 +80,12 @@ type CaptchaConfig struct {
 type RateLimitConfig struct {
 	Window     time.Duration `yaml:"window"`
 	MaxRequest int           `yaml:"max_requests"`
+}
+
+type AdminConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Email    string `yaml:"email"`
 }
 
 // Load 从 YAML 文件加载配置并校验。

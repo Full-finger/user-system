@@ -88,3 +88,11 @@ func (r *userRepoGorm) ExistsByEmail(ctx context.Context, email string) (bool, e
 	}
 	return count > 0, nil
 }
+
+func (r *userRepoGorm) ExistsByRole(ctx context.Context, role string) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.User{}).Where("role = ?", role).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

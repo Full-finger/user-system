@@ -21,4 +21,5 @@ type UserRepository interface {
 	FindPage(ctx context.Context, page, size int) ([]model.User, int64, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	ExistsByRole(ctx context.Context, role string) (bool, error)
 }
