@@ -62,6 +62,51 @@ func JWTMiddleware(cfg *config.JWTConfig) echo.MiddlewareFunc {
 	}
 }
 
+// OptionalJWTMiddleware 尝试解析 Bearer token，成功则注入 user_id/username/role，失败则放行（不设置值）。
+// 适用于既允许匿名访问、又希望在有 token 时提供个性化数据的场景。
+func OptionalJWTMiddleware(cfg *config.JWTConfig) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			auth := c.Request().Header.Get("Authorization")
+			if auth == "" {
+				return next(c)
+			}
+
+			parts := strings.SplitN(auth, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				return next(c)
+			}
+
+			token, err := jwt.Parse(parts[1], func(t *jwt.Token) (any, error) {
+				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+				}
+				return []byte(cfg.Secret), nil
+			})
+			if err != nil || !token.Valid {
+				return next(c)
+			}
+
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if !ok {
+				return next(c)
+			}
+
+			if userID, ok := claimFloat(claims, "user_id"); ok {
+				c.Set("user_id", uint(userID))
+			}
+			if username, ok := claimString(claims, "username"); ok {
+				c.Set("username", username)
+			}
+			if role, ok := claimString(claims, "role"); ok {
+				c.Set("role", role)
+			}
+
+			return next(c)
+		}
+	}
+}
+
 // AdminOnly 限制仅 admin 角色可访问，需在 JWTMiddleware 之后使用。
 func AdminOnly() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
