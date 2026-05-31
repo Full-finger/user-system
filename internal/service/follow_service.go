@@ -123,3 +123,18 @@ func (s *FollowService) FollowingIDs(ctx context.Context, userID uint) ([]uint, 
 	}
 	return ids, nil
 }
+
+// IsFollowing 判断 followerID 是否已关注 followingID。
+func (s *FollowService) IsFollowing(ctx context.Context, followerID, followingID uint) (bool, error) {
+	return s.followRepo.Exists(ctx, followerID, followingID)
+}
+
+// FindFollowedUserIDs 批量查询当前用户关注了哪些用户，返回 userID → bool 映射。
+func (s *FollowService) FindFollowedUserIDs(ctx context.Context, followerID uint, userIDs []uint) (map[uint]bool, error) {
+	m, err := s.followRepo.FindFollowedUserIDs(ctx, followerID, userIDs)
+	if err != nil {
+		s.log.Error("批量查询关注状态失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
+	}
+	return m, nil
+}
