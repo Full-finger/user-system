@@ -135,7 +135,7 @@ func toPostListEntry(p *model.Post, likedMap map[uint]bool) PostListEntry {
 	return PostListEntry{
 		Code:       p.Code,
 		Title:      p.Title,
-		Content:    p.Content,
+		Content:    truncate(p.Content, 200),
 		Node:       ToNodeResponse(&p.Node),
 		User:       ToUserResponse(&p.User),
 		LikeCount:  p.LikeCount,
@@ -180,4 +180,13 @@ func ToLikedPostListResponse(likes []model.Like, total int64, page, pageSize int
 		Page:     page,
 		PageSize: pageSize,
 	}
+}
+
+// truncate 将字符串硬截断为 n 个字符（rune），超出部分用 "..." 替代。
+func truncate(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
 }
