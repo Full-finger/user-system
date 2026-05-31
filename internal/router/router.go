@@ -2,6 +2,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/controller"
 	"github.com/full-finger/user-system/internal/middleware"
@@ -11,6 +13,11 @@ import (
 
 // Setup 注册所有 API 路由，分为公开、可选鉴权、鉴权、管理员四组。
 func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, cfg *config.Config, rdb *redis.Client) {
+	// ── 健康检查（不受限流和鉴权影响） ───────────────────
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	})
+
 	api := e.Group("/api")
 
 	// ── 公开路由（IP 限流） ──────────────────────────────
