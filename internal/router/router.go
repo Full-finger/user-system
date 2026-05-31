@@ -41,12 +41,12 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	optAuth.GET("/posts", postCtrl.ListPosts)
 	optAuth.GET("/posts/:id", postCtrl.GetPost)
 
-	// 用户相关（带 followed/liked 状态）
-	optAuth.GET("/users/:user_id/posts", postCtrl.ListUserPosts)
-	optAuth.GET("/users/:user_id/likes", postCtrl.ListLikedPosts)
-	optAuth.GET("/users/:user_id/followers", postCtrl.GetFollowers)
-	optAuth.GET("/users/:user_id/followings", postCtrl.GetFollowings)
-	optAuth.GET("/users/:user_id", postCtrl.GetUserProfile)
+	// 用户相关（带 followed/liked 状态），使用用户名作为标识
+	optAuth.GET("/users/:username/posts", postCtrl.ListUserPosts)
+	optAuth.GET("/users/:username/likes", postCtrl.ListLikedPosts)
+	optAuth.GET("/users/:username/followers", postCtrl.GetFollowers)
+	optAuth.GET("/users/:username/followings", postCtrl.GetFollowings)
+	optAuth.GET("/users/:username", postCtrl.GetUserProfile)
 
 	// ── 需要鉴权的路由 ───────────────────────────────────
 	auth := api.Group("")
@@ -63,7 +63,7 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	auth.GET("/feed", postCtrl.ListFeed)
 
 	// 关注
-	auth.PUT("/users/:user_id/follow", postCtrl.ToggleFollow)
+	auth.PUT("/users/:username/follow", postCtrl.ToggleFollow)
 
 	// ── 管理员路由 ──────────────────────────────────────
 	admin := auth.Group("/admin")

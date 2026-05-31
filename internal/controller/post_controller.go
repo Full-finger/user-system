@@ -10,6 +10,15 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// resolveUsername 从路由参数中解析用户名并查找用户，失败时返回错误响应。
+func (ctrl *PostController) resolveUsername(c echo.Context) (*model.User, error) {
+	username := c.Param("username")
+	if username == "" {
+		return nil, apperror.BadRequest("缺少用户名")
+	}
+	return ctrl.followSvc.ResolveUsername(c.Request().Context(), username)
+}
+
 // PostController 帖子相关接口的处理器。
 type PostController struct {
 	postSvc   *service.PostService
@@ -148,12 +157,12 @@ func (ctrl *PostController) ListPosts(c echo.Context) error {
 
 // ListUserPosts 某用户的帖子列表。
 func (ctrl *PostController) ListUserPosts(c echo.Context) error {
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
 	page, size := parsePage(c)
-	posts, total, err := ctrl.postSvc.ListUserPosts(c.Request().Context(), uint(uid), page, size)
+	posts, total, err := ctrl.postSvc.ListUserPosts(c.Request().Context(), target.ID, page, size)
 	if err != nil {
 		return err
 	}
@@ -201,12 +210,12 @@ func (ctrl *PostController) ToggleLike(c echo.Context) error {
 
 // ListLikedPosts 某用户点赞过的帖子。
 func (ctrl *PostController) ListLikedPosts(c echo.Context) error {
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
 	page, size := parsePage(c)
-	likes, total, err := ctrl.postSvc.ListLikedPosts(c.Request().Context(), uint(uid), page, size)
+	likes, total, err := ctrl.postSvc.ListLikedPosts(c.Request().Context(), target.ID, page, size)
 	if err != nil {
 		return err
 	}
@@ -226,11 +235,11 @@ func (ctrl *PostController) ToggleFollow(c echo.Context) error {
 	if !ok {
 		return apperror.Unauthorized("未认证")
 	}
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
-	followed, err := ctrl.followSvc.ToggleFollow(c.Request().Context(), userID, uint(uid))
+	followed, err := ctrl.followSvc.ToggleFollow(c.Request().Context(), userID, target.ID)
 	if err != nil {
 		return err
 	}
@@ -239,12 +248,12 @@ func (ctrl *PostController) ToggleFollow(c echo.Context) error {
 
 // GetFollowers 某用户的粉丝列表。
 func (ctrl *PostController) GetFollowers(c echo.Context) error {
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
 	page, size := parsePage(c)
-	follows, total, err := ctrl.followSvc.GetFollowers(c.Request().Context(), uint(uid), page, size)
+	follows, total, err := ctrl.followSvc.GetFollowers(c.Request().Context(), target.ID, page, size)
 	if err != nil {
 		return err
 	}
@@ -258,12 +267,12 @@ func (ctrl *PostController) GetFollowers(c echo.Context) error {
 
 // GetFollowings 某用户的关注列表。
 func (ctrl *PostController) GetFollowings(c echo.Context) error {
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
 	page, size := parsePage(c)
-	follows, total, err := ctrl.followSvc.GetFollowings(c.Request().Context(), uint(uid), page, size)
+	follows, total, err := ctrl.followSvc.GetFollowings(c.Request().Context(), target.ID, page, size)
 	if err != nil {
 		return err
 	}
@@ -277,17 +286,17 @@ func (ctrl *PostController) GetFollowings(c echo.Context) error {
 
 // GetUserProfile 查看其他用户信息（含统计）。
 func (ctrl *PostController) GetUserProfile(c echo.Context) error {
-	uid, err := strconv.ParseUint(c.Param("user_id"), 10, 64)
+	target, err := ctrl.resolveUsername(c)
 	if err != nil {
-		return apperror.BadRequest("无效的用户ID")
+		return err
 	}
-	user, postCount, followerCount, followingCount, err := ctrl.followSvc.GetUserProfile(c.Request().Context(), uint(uid))
+	user, postCount, followerCount, followingCount, err := ctrl.followSvc.GetUserProfile(c.Request().Context(), target.ID)
 	if err != nil {
 		return err
 	}
 	followed := false
-	if currentID, ok := optionalUserID(c); ok && currentID != uint(uid) {
-		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), currentID, uint(uid))
+	if currentID, ok := optionalUserID(c); ok && currentID != target.ID {
+		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), currentID, target.ID)
 	}
 	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount, followed))
 }

@@ -222,7 +222,196 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /users:
+  /users/{username}:
+    get:
+      tags: [公开接口]
+      summary: 获取用户公开资料
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserProfileResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{username}/posts:
+    get:
+      tags: [公开接口]
+      summary: 获取某用户的帖子列表
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PostListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{username}/likes:
+    get:
+      tags: [公开接口]
+      summary: 获取某用户点赞过的帖子
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LikedPostListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{username}/followers:
+    get:
+      tags: [公开接口]
+      summary: 获取某用户的粉丝列表
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/FollowListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{username}/followings:
+    get:
+      tags: [公开接口]
+      summary: 获取某用户的关注列表
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Username"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/FollowListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{username}/follow:
+    put:
+      tags: [认证接口]
+      summary: 关注/取消关注
+      parameters:
+        - $ref: "#/components/parameters/Username"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          followed:
+                            type: boolean
+                            example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /admin/users:
     get:
       tags: [管理员接口]
       summary: 获取用户列表
@@ -354,7 +543,17 @@ components:
       required: true
       schema:
         type: integer
-      description: 用户 ID
+      description: 用户 ID（管理员接口使用）
+
+    Username:
+      name: username
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 30
+      description: 用户名（公开接口使用）
 
   schemas:
     ApiResponse:
@@ -509,6 +708,90 @@ components:
           enum: [admin, user]
           description: 用户角色
           example: admin
+
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: zhangsan
+        nickname:
+          type: string
+          example: 张三
+        role:
+          type: string
+          enum: [admin, user]
+          example: user
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+        post_count:
+          type: integer
+          example: 10
+        follower_count:
+          type: integer
+          example: 100
+        following_count:
+          type: integer
+          example: 50
+        followed:
+          type: boolean
+          example: false
+
+    PostListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+          example: 100
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    LikedPostListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+          example: 50
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
+
+    FollowListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+          example: 200
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
 
   responses:
     BadRequest:

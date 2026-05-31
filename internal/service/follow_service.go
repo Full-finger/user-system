@@ -124,6 +124,19 @@ func (s *FollowService) FollowingIDs(ctx context.Context, userID uint) ([]uint, 
 	return ids, nil
 }
 
+// ResolveUsername 根据用户名查找用户，找不到时返回 404。
+func (s *FollowService) ResolveUsername(ctx context.Context, username string) (*model.User, error) {
+	user, err := s.userRepo.FindByUsername(ctx, username)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
+	}
+	return user, nil
+}
+
 // IsFollowing 判断 followerID 是否已关注 followingID。
 func (s *FollowService) IsFollowing(ctx context.Context, followerID, followingID uint) (bool, error) {
 	return s.followRepo.Exists(ctx, followerID, followingID)
