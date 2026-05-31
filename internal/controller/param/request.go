@@ -39,3 +39,10 @@ type BindEmailRequest struct {
 	Email string `json:"email" validate:"required,email"`
 	Code  string `json:"code" validate:"required"`
 }
+
+// CreatePostRequest 发帖请求。
+type CreatePostRequest struct {
+	NodeID  uint   `json:"node_id" validate:"required"`
+	Title   string `json:"title" validate:"required,min=1,max=200"`
+	Content string `json:"content" validate:"required,min=1"`
+}
