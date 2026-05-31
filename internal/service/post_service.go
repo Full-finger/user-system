@@ -56,7 +56,7 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 	_ = s.nodeRepo.IncrPostCount(ctx, nodeID)
 
 	// 异步解析 @提及（不阻塞主流程）
-	go s.nodeSvc.ParseAndSaveMentions(ctx, post.ID, content)
+	go s.nodeSvc.ParseAndSaveMentions(context.Background(), post.ID, content)
 
 	return s.postRepo.FindByID(ctx, post.ID)
 }
