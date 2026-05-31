@@ -50,6 +50,10 @@ rate_limit:
   window: 1m
   max_requests: 10
 
+guest_jwt:
+  secret: "CHANGE_ME_GUEST_JWT_SECRET"
+  expire: 168h  # 7 天
+
 # 仅当数据库中不存在任何 admin 用户时自动创建，创建后再次启动不会重复创建
 # ⚠️ 首次登录后请立即修改密码
 admin:

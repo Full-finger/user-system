@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
@@ -22,12 +23,6 @@ func parsePage(c echo.Context) (page, size int) {
 	return
 }
 
-// optionalUserID 尝试从 context 获取当前登录用户 ID，未登录时返回 (0, false)。
-func optionalUserID(c echo.Context) (uint, bool) {
-	id, ok := c.Get("user_id").(uint)
-	return id, ok
-}
-
 // resolveUsername 从路由参数中解析用户名并查找用户，失败时返回错误响应。
 func resolveUsername(c echo.Context, followSvc *service.FollowService) (*model.User, error) {
 	username := c.Param("username")
@@ -37,7 +32,7 @@ func resolveUsername(c echo.Context, followSvc *service.FollowService) (*model.U
 	return followSvc.ResolveUsername(c.Request().Context(), username)
 }
 
-// buildLikedMap 从帖子列表构建 likedMap，未登录时返回 nil。
+// buildLikedMap 从帖子列表构建 likedMap，Guest 时返回 nil。
 func buildLikedMap(c echo.Context, posts []model.Post, likeSvc *service.LikeService) map[uint]bool {
 	if len(posts) == 0 {
 		return nil
@@ -49,22 +44,22 @@ func buildLikedMap(c echo.Context, posts []model.Post, likeSvc *service.LikeServ
 	return buildLikedMapForPosts(c, ids, likeSvc)
 }
 
-// buildLikedMapForPosts 从帖子 ID 列表构建 likedMap，未登录时返回 nil。
+// buildLikedMapForPosts 从帖子 ID 列表构建 likedMap，Guest 时返回 nil。
 func buildLikedMapForPosts(c echo.Context, postIDs []uint, likeSvc *service.LikeService) map[uint]bool {
-	userID, ok := optionalUserID(c)
-	if !ok || len(postIDs) == 0 {
+	uc := auth.GetUserContext(c)
+	if uc.IsGuest() || len(postIDs) == 0 {
 		return nil
 	}
-	m, _ := likeSvc.FindLikedPostIDs(c.Request().Context(), userID, postIDs)
+	m, _ := likeSvc.FindLikedPostIDs(c.Request().Context(), uc, postIDs)
 	return m
 }
 
-// buildFollowedMap 从用户 ID 列表构建 followedMap，未登录时返回 nil。
+// buildFollowedMap 从用户 ID 列表构建 followedMap，Guest 时返回 nil。
 func buildFollowedMap(c echo.Context, userIDs []uint, followSvc *service.FollowService) map[uint]bool {
-	userID, ok := optionalUserID(c)
-	if !ok || len(userIDs) == 0 {
+	uc := auth.GetUserContext(c)
+	if uc.IsGuest() || len(userIDs) == 0 {
 		return nil
 	}
-	m, _ := followSvc.FindFollowedUserIDs(c.Request().Context(), userID, userIDs)
+	m, _ := followSvc.FindFollowedUserIDs(c.Request().Context(), uc, userIDs)
 	return m
 }

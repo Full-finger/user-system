@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
@@ -30,6 +31,15 @@ func setupUserTest(t *testing.T) *UserService {
 	return NewUserService(repo, cfg, log)
 }
 
+func superAdminUC() *auth.UserContext {
+	return &auth.UserContext{
+		UserID:   1,
+		Username: "superadmin",
+		Role:     auth.RoleSuperAdmin,
+		DeviceID: "test-device",
+	}
+}
+
 func TestUserService_Register(t *testing.T) {
 	ctx := context.Background()
 	t.Run("success", func(t *testing.T) {
@@ -47,8 +57,8 @@ func TestUserService_Register(t *testing.T) {
 		if user.Nickname != "alice" {
 			t.Errorf("expected default nickname alice, got %s", user.Nickname)
 		}
-		if user.Role != "user" {
-			t.Errorf("expected role user, got %s", user.Role)
+		if user.Role != int(auth.RoleUser) {
+			t.Errorf("expected role %d, got %d", int(auth.RoleUser), user.Role)
 		}
 		if user.Password == "alice123" {
 			t.Error("password should be hashed")
@@ -110,9 +120,10 @@ func TestUserService_GetProfile(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
 	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
+	uc := &auth.UserContext{UserID: user.ID, Username: user.Username, Role: auth.RoleUser, DeviceID: "test"}
 
 	t.Run("found", func(t *testing.T) {
-		got, err := svc.GetProfile(ctx, user.ID)
+		got, err := svc.GetProfile(ctx, uc)
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -122,7 +133,8 @@ func TestUserService_GetProfile(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		_, err := svc.GetProfile(ctx, 999)
+		badUC := &auth.UserContext{UserID: 999, Username: "nobody", Role: auth.RoleUser, DeviceID: "test"}
+		_, err := svc.GetProfile(ctx, badUC)
 		if err == nil {
 			t.Fatal("expected error")
 		}
@@ -133,9 +145,10 @@ func TestUserService_UpdateUser(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
 	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
+	adminUC := superAdminUC()
 
 	t.Run("update password", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Password: "newpass88"})
+		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Password: "newpass88"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -145,7 +158,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 	})
 
 	t.Run("update nickname", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Nickname: "爱丽丝"})
+		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Nickname: "爱丽丝"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -154,18 +167,18 @@ func TestUserService_UpdateUser(t *testing.T) {
 		}
 	})
 
-	t.Run("update role", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{Role: "admin"})
+	t.Run("update role to moderator", func(t *testing.T) {
+		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Role: "moderator"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if updated.Role != "admin" {
-			t.Errorf("expected admin, got %s", updated.Role)
+		if updated.Role != int(auth.RoleModerator) {
+			t.Errorf("expected role %d, got %d", int(auth.RoleModerator), updated.Role)
 		}
 	})
 
 	t.Run("empty update does nothing", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, user.ID, UpdateInput{})
+		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
@@ -179,13 +192,15 @@ func TestUserService_DeleteUser(t *testing.T) {
 	ctx := context.Background()
 	svc := setupUserTest(t)
 	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
+	adminUC := superAdminUC()
 
-	err := svc.DeleteUser(ctx, user.ID)
+	err := svc.DeleteUser(ctx, adminUC, user.ID)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	_, err = svc.GetProfile(ctx, user.ID)
+	uc := &auth.UserContext{UserID: user.ID, Username: "alice", Role: auth.RoleUser, DeviceID: "test"}
+	_, err = svc.GetProfile(ctx, uc)
 	if err == nil {
 		t.Fatal("expected user to be deleted")
 	}
@@ -196,17 +211,19 @@ func TestUserService_BindEmail(t *testing.T) {
 	svc := setupUserTest(t)
 	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
 	user2, _ := svc.Register(ctx, RegisterInput{Username: "bob", Password: "bob12345"})
+	uc1 := &auth.UserContext{UserID: user.ID, Username: user.Username, Role: auth.RoleUser, DeviceID: "test"}
+	uc2 := &auth.UserContext{UserID: user2.ID, Username: user2.Username, Role: auth.RoleUser, DeviceID: "test"}
 
 	t.Run("success", func(t *testing.T) {
-		err := svc.BindEmail(ctx, user.ID, "alice@example.com")
+		err := svc.BindEmail(ctx, uc1, "alice@example.com")
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
 	})
 
 	t.Run("duplicate email", func(t *testing.T) {
-		_ = svc.BindEmail(ctx, user2.ID, "bob@example.com")
-		err := svc.BindEmail(ctx, user.ID, "bob@example.com")
+		_ = svc.BindEmail(ctx, uc2, "bob@example.com")
+		err := svc.BindEmail(ctx, uc1, "bob@example.com")
 		if err == nil {
 			t.Fatal("expected error for duplicate email")
 		}
@@ -222,8 +239,9 @@ func TestUserService_ListUsers(t *testing.T) {
 			Password: fmt.Sprintf("user%dpass", i),
 		})
 	}
+	adminUC := superAdminUC()
 
-	users, total, err := svc.ListUsers(ctx, 1, 3)
+	users, total, err := svc.ListUsers(ctx, adminUC, 1, 3)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

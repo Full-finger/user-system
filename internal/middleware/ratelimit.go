@@ -7,12 +7,13 @@ import (
 	"time"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 )
 
-// RateLimitMiddleware 基于 Redis 滑动窗口的 IP+路径 限流，Redis 异常时放行。
+// RateLimitMiddleware 基于 Redis 滑动窗口限流，key 优先级：user_id > device_id > IP。
 func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.MiddlewareFunc {
 	window := cfg.Window
 	if window <= 0 {
@@ -25,15 +26,12 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			ip := c.RealIP()
-			path := c.Path()
-			key := fmt.Sprintf("ratelimit:%s:%s", ip, path)
+			uc := auth.GetUserContext(c)
+			key := rateLimitKey(uc, c.Path(), c.RealIP())
 
 			now := time.Now().UnixMilli()
 			windowMs := window.Milliseconds()
-
 			ctx := c.Request().Context()
-
 			member := randMember()
 
 			pipe := rdb.Pipeline()
@@ -49,10 +47,19 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 			if countCmd.Val() >= int64(maxReq) {
 				return apperror.TooMany("请求过于频繁，请稍后再试")
 			}
-
 			return next(c)
 		}
 	}
+}
+
+func rateLimitKey(uc *auth.UserContext, path, ip string) string {
+	if uc.IsAuthenticated() {
+		return fmt.Sprintf("rl:u:%d:%s", uc.UserID, path)
+	}
+	if uc.DeviceID != "" {
+		return fmt.Sprintf("rl:d:%s:%s", uc.DeviceID, path)
+	}
+	return fmt.Sprintf("rl:ip:%s:%s", ip, path)
 }
 
 func randMember() string {

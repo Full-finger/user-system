@@ -12,7 +12,7 @@ type UserUpdate struct {
 	Email    *string
 	Nickname *string
 	Password *string // 调用方需传入已哈希的密码
-	Role     *string
+	Role     *int
 }
 
 // UserRepository 用户数据访问接口。
@@ -29,5 +29,5 @@ type UserRepository interface {
 	FindPage(ctx context.Context, page, size int) ([]model.User, int64, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
-	ExistsByRole(ctx context.Context, role string) (bool, error)
+	ExistsByRole(ctx context.Context, role int) (bool, error)
 }

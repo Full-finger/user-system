@@ -1,4 +1,3 @@
-// Package router 注册 HTTP 路由。
 package router
 
 import (
@@ -11,74 +10,50 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Setup 注册所有 API 路由，分为公开、可选鉴权、鉴权、管理员四组。
+// Setup 注册所有 API 路由，统一走 AuthMiddleware + 限流，权限判断下沉到 Service 层。
 func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, cfg *config.Config, rdb *redis.Client) {
-	// ── 健康检查（不受限流和鉴权影响） ───────────────────
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	api := e.Group("/api")
+	api.Use(middleware.AuthMiddleware(&cfg.JWT, &cfg.GuestJWT))
+	api.Use(middleware.RateLimitMiddleware(rdb, &cfg.RateLimit))
 
-	// ── 公开路由（IP 限流） ──────────────────────────────
-	public := api.Group("")
-	public.Use(middleware.RateLimitMiddleware(rdb, &cfg.RateLimit))
+	// 公开
+	api.POST("/guest-token", userCtrl.GuestToken)
+	api.GET("/check-username", userCtrl.CheckUsername)
+	api.POST("/register", userCtrl.Register)
+	api.POST("/login", userCtrl.Login)
+	api.POST("/send-code", userCtrl.SendCode)
+	api.POST("/code-login", userCtrl.CodeLogin)
+	api.GET("/nodes", nodeCtrl.ListNodes)
+	api.GET("/nodes/:id", nodeCtrl.GetNode)
 
-	// 用户认证
-	public.GET("/check-username", userCtrl.CheckUsername)
-	public.POST("/register", userCtrl.Register)
-	public.POST("/login", userCtrl.Login)
-	public.POST("/send-code", userCtrl.SendCode)
-	public.POST("/code-login", userCtrl.CodeLogin)
+	// 可个性化（Guest 正常访问，登录用户返回 liked/followed）
+	api.GET("/nodes/:id/posts", nodeCtrl.ListNodePosts)
+	api.GET("/posts", postCtrl.ListPosts)
+	api.GET("/posts/:id", postCtrl.GetPost)
+	api.GET("/users/:username/posts", postCtrl.ListUserPosts)
+	api.GET("/users/:username/likes", postCtrl.ListLikedPosts)
+	api.GET("/users/:username/followers", followCtrl.GetFollowers)
+	api.GET("/users/:username/followings", followCtrl.GetFollowings)
+	api.GET("/users/:username", followCtrl.GetUserProfile)
 
-	// 节点（公开只读，不需要 liked/followed 状态）
-	public.GET("/nodes", nodeCtrl.ListNodes)
-	public.GET("/nodes/:id", nodeCtrl.GetNode)
+	// 需登录（Service 层 RequireRole(User)）
+	api.GET("/profile", userCtrl.GetProfile)
+	api.PUT("/profile", userCtrl.UpdateProfile)
+	api.PUT("/profile/email", userCtrl.BindEmail)
+	api.POST("/posts", postCtrl.CreatePost)
+	api.DELETE("/posts/:id", postCtrl.DeletePost)
+	api.PUT("/posts/:id/like", postCtrl.ToggleLike)
+	api.GET("/feed", postCtrl.ListFeed)
+	api.PUT("/users/:username/follow", followCtrl.ToggleFollow)
 
-	// ── 可选鉴权路由（IP 限流 + 可选 JWT） ──────────────
-	// 带 token 时返回个性化数据（liked/followed），不带时正常访问
-	optAuth := api.Group("")
-	optAuth.Use(middleware.RateLimitMiddleware(rdb, &cfg.RateLimit))
-	optAuth.Use(middleware.OptionalJWTMiddleware(&cfg.JWT))
-
-	// 节点帖子
-	optAuth.GET("/nodes/:id/posts", nodeCtrl.ListNodePosts)
-
-	// 帖子（带 liked 状态）
-	optAuth.GET("/posts", postCtrl.ListPosts)
-	optAuth.GET("/posts/:id", postCtrl.GetPost)
-
-	// 用户相关（带 followed/liked 状态），使用用户名作为标识
-	optAuth.GET("/users/:username/posts", postCtrl.ListUserPosts)
-	optAuth.GET("/users/:username/likes", postCtrl.ListLikedPosts)
-	optAuth.GET("/users/:username/followers", followCtrl.GetFollowers)
-	optAuth.GET("/users/:username/followings", followCtrl.GetFollowings)
-	optAuth.GET("/users/:username", followCtrl.GetUserProfile)
-
-	// ── 需要鉴权的路由 ───────────────────────────────────
-	auth := api.Group("")
-	auth.Use(middleware.JWTMiddleware(&cfg.JWT))
-
-	auth.GET("/profile", userCtrl.GetProfile)
-	auth.PUT("/profile", userCtrl.UpdateProfile)
-	auth.PUT("/profile/email", userCtrl.BindEmail)
-
-	// 帖子 — 写操作
-	auth.POST("/posts", postCtrl.CreatePost)
-	auth.DELETE("/posts/:id", postCtrl.DeletePost)
-	auth.PUT("/posts/:id/like", postCtrl.ToggleLike)
-	auth.GET("/feed", postCtrl.ListFeed)
-
-	// 关注
-	auth.PUT("/users/:username/follow", followCtrl.ToggleFollow)
-
-	// ── 管理员路由 ──────────────────────────────────────
-	admin := auth.Group("/admin")
-	admin.Use(middleware.AdminOnly())
-
-	admin.GET("/users", userCtrl.ListUsers)
-	admin.GET("/users/:id", userCtrl.GetUser)
-	admin.PUT("/users/:id", userCtrl.UpdateUser)
-	admin.DELETE("/users/:id", userCtrl.DeleteUser)
-	admin.DELETE("/posts/:id", postCtrl.DeletePost)
+	// 管理（Service 层 RequireRole(Admin/SuperAdmin)）
+	api.GET("/admin/users", userCtrl.ListUsers)
+	api.GET("/admin/users/:id", userCtrl.GetUser)
+	api.PUT("/admin/users/:id", userCtrl.UpdateUser)
+	api.DELETE("/admin/users/:id", userCtrl.DeleteUser)
+	api.DELETE("/admin/posts/:id", postCtrl.AdminDeletePost)
 }

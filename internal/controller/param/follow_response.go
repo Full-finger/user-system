@@ -1,6 +1,7 @@
 package param
 
 import (
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 )
 
@@ -98,7 +99,7 @@ func ToUserProfileResponse(u *model.User, postCount, followerCount, followingCou
 		ID:             u.ID,
 		Username:       u.Username,
 		Nickname:       u.Nickname,
-		Role:           u.Role,
+		Role:           auth.Role(u.Role).String(),
 		CreatedAt:      u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		PostCount:      postCount,
 		FollowerCount:  followerCount,

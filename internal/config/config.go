@@ -22,6 +22,7 @@ type Config struct {
 	SMTP      SMTPConfig       `yaml:"smtp"`
 	Captcha   CaptchaConfig    `yaml:"captcha"`
 	RateLimit RateLimitConfig  `yaml:"rate_limit"`
+	GuestJWT  GuestJWTConfig   `yaml:"guest_jwt"`
 	Admin     AdminConfig      `yaml:"admin"`
 	Log       logger.LogConfig `yaml:"log"`
 }
@@ -82,6 +83,11 @@ type RateLimitConfig struct {
 	MaxRequest int           `yaml:"max_requests"`
 }
 
+type GuestJWTConfig struct {
+	Secret string        `yaml:"secret"`
+	Expire time.Duration `yaml:"expire"`
+}
+
 type AdminConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
@@ -125,6 +131,12 @@ func (c *Config) Validate() error {
 	case "development", "test", "production":
 	default:
 		return fmt.Errorf("%w: server.env 必须是 development/test/production 之一", ErrInvalidConfig)
+	}
+	if len(c.GuestJWT.Secret) < 16 {
+		return fmt.Errorf("%w: guest_jwt secret 长度不能少于 16", ErrInvalidConfig)
+	}
+	if c.GuestJWT.Expire <= 0 {
+		return fmt.Errorf("%w: guest_jwt expire 必须大于 0", ErrInvalidConfig)
 	}
 	return nil
 }

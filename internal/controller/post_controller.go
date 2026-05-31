@@ -2,6 +2,7 @@ package controller
 
 import (
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
@@ -21,15 +22,12 @@ func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeServic
 
 // CreatePost 发帖。
 func (ctrl *PostController) CreatePost(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
+	uc := auth.GetUserContext(c)
 	var req param.CreatePostRequest
 	if err := bindAndValidate(c, &req); err != nil {
 		return err
 	}
-	post, err := ctrl.postSvc.CreatePost(c.Request().Context(), userID, req.NodeID, req.Title, req.Content)
+	post, err := ctrl.postSvc.CreatePost(c.Request().Context(), uc, req.NodeID, req.Title, req.Content)
 	if err != nil {
 		return err
 	}
@@ -39,16 +37,12 @@ func (ctrl *PostController) CreatePost(c echo.Context) error {
 
 // DeletePost 删帖。
 func (ctrl *PostController) DeletePost(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
-	role, _ := c.Get("role").(string)
+	uc := auth.GetUserContext(c)
 	code := c.Param("id")
 	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	if err := ctrl.postSvc.DeletePost(c.Request().Context(), userID, code, role == "admin"); err != nil {
+	if err := ctrl.postSvc.DeletePost(c.Request().Context(), uc, code); err != nil {
 		return err
 	}
 	return success(c, nil)
@@ -96,12 +90,9 @@ func (ctrl *PostController) ListUserPosts(c echo.Context) error {
 
 // ListFeed 关注用户的帖子（时间线）。
 func (ctrl *PostController) ListFeed(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
+	uc := auth.GetUserContext(c)
 	page, size := parsePage(c)
-	ids, err := ctrl.followSvc.FollowingIDs(c.Request().Context(), userID)
+	ids, err := ctrl.followSvc.FollowingIDs(c.Request().Context(), uc)
 	if err != nil {
 		return err
 	}
@@ -115,19 +106,29 @@ func (ctrl *PostController) ListFeed(c echo.Context) error {
 
 // ToggleLike 点赞/取消点赞。
 func (ctrl *PostController) ToggleLike(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
+	uc := auth.GetUserContext(c)
 	code := c.Param("id")
 	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	liked, err := ctrl.postSvc.ToggleLike(c.Request().Context(), userID, code)
+	liked, err := ctrl.postSvc.ToggleLike(c.Request().Context(), uc, code)
 	if err != nil {
 		return err
 	}
 	return success(c, map[string]bool{"liked": liked})
+}
+
+// AdminDeletePost 管理员/版主删帖。
+func (ctrl *PostController) AdminDeletePost(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	code := c.Param("id")
+	if code == "" {
+		return apperror.BadRequest("无效的ID")
+	}
+	if err := ctrl.postSvc.AdminDeletePost(c.Request().Context(), uc, code); err != nil {
+		return err
+	}
+	return success(c, nil)
 }
 
 // ListLikedPosts 某用户点赞过的帖子。

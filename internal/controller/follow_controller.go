@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
@@ -19,15 +19,12 @@ func NewFollowController(followSvc *service.FollowService, likeSvc *service.Like
 
 // ToggleFollow 关注/取消关注。
 func (ctrl *FollowController) ToggleFollow(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
-	followed, err := ctrl.followSvc.ToggleFollow(c.Request().Context(), userID, target.ID)
+	followed, err := ctrl.followSvc.ToggleFollow(c.Request().Context(), uc, target.ID)
 	if err != nil {
 		return err
 	}
@@ -74,6 +71,7 @@ func (ctrl *FollowController) GetFollowings(c echo.Context) error {
 
 // GetUserProfile 查看其他用户信息（含统计）。
 func (ctrl *FollowController) GetUserProfile(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
@@ -83,8 +81,8 @@ func (ctrl *FollowController) GetUserProfile(c echo.Context) error {
 		return err
 	}
 	followed := false
-	if currentID, ok := optionalUserID(c); ok && currentID != target.ID {
-		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), currentID, target.ID)
+	if !uc.IsGuest() && uc.UserID != target.ID {
+		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), uc, target.ID)
 	}
 	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount, followed))
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
 	"github.com/full-finger/user-system/pkg/base62"
@@ -15,20 +16,24 @@ import (
 
 // PostService 帖子业务服务。
 type PostService struct {
-	postRepo repository.PostRepository
-	likeRepo repository.LikeRepository
-	nodeRepo repository.NodeRepository
-	nodeSvc  *NodeService
-	txDB     *gorm.DB // 仅用于事务协调，不直接做 CRUD
-	log      *zap.Logger
+	postRepo    repository.PostRepository
+	likeRepo    repository.LikeRepository
+	nodeRepo    repository.NodeRepository
+	nodeModRepo repository.NodeModeratorRepository
+	nodeSvc     *NodeService
+	txDB        *gorm.DB
+	log         *zap.Logger
 }
 
-func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
-	return &PostService{postRepo: postRepo, likeRepo: likeRepo, nodeRepo: nodeRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
+func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeModRepo repository.NodeModeratorRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
+	return &PostService{postRepo: postRepo, likeRepo: likeRepo, nodeRepo: nodeRepo, nodeModRepo: nodeModRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
 }
 
 // CreatePost 发帖。
-func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, title, content string) (*model.Post, error) {
+func (s *PostService) CreatePost(ctx context.Context, uc *auth.UserContext, nodeID uint, title, content string) (*model.Post, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return nil, err
+	}
 	if _, err := s.nodeRepo.FindByID(ctx, nodeID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperror.BadRequest("节点不存在")
@@ -43,13 +48,12 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 	}
 	post := &model.Post{
 		Code:    code,
-		UserID:  userID,
+		UserID:  uc.UserID,
 		NodeID:  nodeID,
 		Title:   title,
 		Content: content,
 	}
 
-	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
 	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(post).Error; err != nil {
 			return err
@@ -64,14 +68,12 @@ func (s *PostService) CreatePost(ctx context.Context, userID uint, nodeID uint, 
 		return nil, apperror.Internal("发帖失败")
 	}
 
-	// 异步解析 @提及（不阻塞主流程）
 	go s.nodeSvc.ParseAndSaveMentions(context.Background(), post.ID, content)
-
 	return s.postRepo.FindByID(ctx, post.ID)
 }
 
-// DeletePost 删帖，仅作者或管理员可删除。
-func (s *PostService) DeletePost(ctx context.Context, userID uint, code string, isAdmin bool) error {
+// DeletePost 删帖：作者本人 / 版主（管辖该节点）/ 管理员及以上。
+func (s *PostService) DeletePost(ctx context.Context, uc *auth.UserContext, code string) error {
 	post, err := s.postRepo.FindByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -80,11 +82,11 @@ func (s *PostService) DeletePost(ctx context.Context, userID uint, code string, 
 		s.log.Error("查询帖子失败", zap.Error(err))
 		return apperror.Internal("查询失败")
 	}
-	if post.UserID != userID && !isAdmin {
+
+	if !s.canDeletePost(ctx, uc, post) {
 		return apperror.Forbidden("无权删除此帖子")
 	}
 
-	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
 	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.Post{}, post.ID).Error; err != nil {
 			return err
@@ -99,6 +101,23 @@ func (s *PostService) DeletePost(ctx context.Context, userID uint, code string, 
 		return apperror.Internal("删帖失败")
 	}
 	return nil
+}
+
+func (s *PostService) canDeletePost(ctx context.Context, uc *auth.UserContext, post *model.Post) bool {
+	// 作者本人
+	if uc.UserID == post.UserID {
+		return true
+	}
+	// Admin 及以上
+	if uc.Role.Level() >= auth.RoleAdmin.Level() {
+		return true
+	}
+	// Moderator 检查节点管辖
+	if uc.Role == auth.RoleModerator {
+		ok, err := s.nodeModRepo.IsModerator(ctx, uc.UserID, post.NodeID)
+		return err == nil && ok
+	}
+	return false
 }
 
 // GetPost 查看帖子详情（自增浏览数）。
@@ -128,7 +147,7 @@ func (s *PostService) ListPosts(ctx context.Context, page, size int) ([]model.Po
 	return posts, total, nil
 }
 
-// ListPostsByNode 按节点查看帖子，支持 sort=time（默认）或 sort=replies。
+// ListPostsByNode 按节点查看帖子。
 func (s *PostService) ListPostsByNode(ctx context.Context, nodeID uint, page, size int, sort string) ([]model.Post, int64, error) {
 	if _, err := s.nodeRepo.FindByID(ctx, nodeID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -168,7 +187,10 @@ func (s *PostService) ListFeed(ctx context.Context, followingIDs []uint, page, s
 }
 
 // ToggleLike 点赞/取消点赞，返回当前是否已赞。
-func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) (bool, error) {
+func (s *PostService) ToggleLike(ctx context.Context, uc *auth.UserContext, code string) (bool, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return false, err
+	}
 	post, err := s.postRepo.FindByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -177,16 +199,15 @@ func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) 
 		return false, apperror.Internal("查询失败")
 	}
 
-	liked, err := s.likeRepo.Exists(ctx, userID, post.ID)
+	liked, err := s.likeRepo.Exists(ctx, uc.UserID, post.ID)
 	if err != nil {
 		s.log.Error("查询点赞状态失败", zap.Error(err))
 		return false, apperror.Internal("查询失败")
 	}
 
-	// NOTE: 事务内直接操作 tx 绕过 repo 层，后续统一 repo 层事务支持时重构此处
 	if liked {
 		if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Where("user_id = ? AND post_id = ?", userID, post.ID).Delete(&model.Like{}).Error; err != nil {
+			if err := tx.Where("user_id = ? AND post_id = ?", uc.UserID, post.ID).Delete(&model.Like{}).Error; err != nil {
 				return err
 			}
 			return tx.Model(&model.Post{}).Where("id = ? AND like_count > 0", post.ID).
@@ -199,7 +220,7 @@ func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) 
 	}
 
 	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&model.Like{UserID: userID, PostID: post.ID}).Error; err != nil {
+		if err := tx.Create(&model.Like{UserID: uc.UserID, PostID: post.ID}).Error; err != nil {
 			return err
 		}
 		return tx.Model(&model.Post{}).Where("id = ?", post.ID).
@@ -209,6 +230,42 @@ func (s *PostService) ToggleLike(ctx context.Context, userID uint, code string) 
 		return false, apperror.Internal("点赞失败")
 	}
 	return true, nil
+}
+
+// AdminDeletePost 管理员/版主删帖：Moderator 及以上，版主需管辖该节点。
+func (s *PostService) AdminDeletePost(ctx context.Context, uc *auth.UserContext, code string) error {
+	if err := uc.RequireRole(auth.RoleModerator); err != nil {
+		return err
+	}
+	post, err := s.postRepo.FindByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("帖子不存在")
+		}
+		s.log.Error("查询帖子失败", zap.Error(err))
+		return apperror.Internal("查询失败")
+	}
+	// 版主需检查节点管辖
+	if uc.Role == auth.RoleModerator {
+		ok, err := s.nodeModRepo.IsModerator(ctx, uc.UserID, post.NodeID)
+		if err != nil || !ok {
+			return apperror.Forbidden("无权管理该节点的帖子")
+		}
+	}
+	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.Post{}, post.ID).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ? AND post_count > 0", post.NodeID).
+			UpdateColumn("post_count", gorm.Expr("post_count - 1")).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		s.log.Error("管理员删帖事务失败", zap.Error(err))
+		return apperror.Internal("删帖失败")
+	}
+	return nil
 }
 
 // ListLikedPosts 某用户点赞过的帖子列表。
@@ -221,7 +278,6 @@ func (s *PostService) ListLikedPosts(ctx context.Context, userID uint, page, siz
 	return likes, total, nil
 }
 
-// generateUniqueCode 生成唯一 base62 code，最多重试 5 次。
 func (s *PostService) generateUniqueCode(ctx context.Context) (string, error) {
 	const maxRetry = 5
 	for i := 0; i < maxRetry; i++ {

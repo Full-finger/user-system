@@ -1,6 +1,9 @@
 package param
 
-import "github.com/full-finger/user-system/internal/model"
+import (
+	"github.com/full-finger/user-system/internal/auth"
+	"github.com/full-finger/user-system/internal/model"
+)
 
 // UserResponse 用户信息响应，脱敏密码。
 type UserResponse struct {
@@ -26,7 +29,7 @@ func ToUserResponse(u *model.User) UserResponse {
 		ID:        u.ID,
 		Username:  u.Username,
 		Nickname:  u.Nickname,
-		Role:      u.Role,
+		Role:      auth.Role(u.Role).String(),
 		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if u.Email != nil {

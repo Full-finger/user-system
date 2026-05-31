@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
@@ -54,7 +55,7 @@ func (s *UserService) Register(ctx context.Context, in RegisterInput) (*model.Us
 		Username: in.Username,
 		Nickname: nickname,
 		Password: string(hashed),
-		Role:     "user",
+		Role:     int(auth.RoleUser),
 	}
 	if in.Email != "" {
 		user.Email = &in.Email
@@ -71,14 +72,12 @@ func (s *UserService) Register(ctx context.Context, in RegisterInput) (*model.Us
 
 // Login 支持用户名或邮箱登录，返回 JWT token。
 func (s *UserService) Login(ctx context.Context, in LoginInput) (string, error) {
-	// 先按用户名查，找不到则 fallback 到邮箱
 	user, err := s.repo.FindByUsername(ctx, in.Username)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			user, err = s.repo.FindByEmail(ctx, in.Username)
 		}
 		if err != nil {
-			// 用户不存在时执行一次假 bcrypt，防止通过响应时间枚举用户名
 			bcrypt.CompareHashAndPassword([]byte("$2a$10$fakehashfakehashfakehashfakeha"), []byte(in.Password))
 			return "", apperror.Unauthorized("用户名或密码错误")
 		}
@@ -97,7 +96,10 @@ func (s *UserService) LoginByEmail(ctx context.Context, email string) (string, e
 	return s.generateToken(user)
 }
 
-func (s *UserService) BindEmail(ctx context.Context, userID uint, email string) error {
+func (s *UserService) BindEmail(ctx context.Context, uc *auth.UserContext, email string) error {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return err
+	}
 	exists, err := s.repo.ExistsByEmail(ctx, email)
 	if err != nil {
 		s.log.Error("查询邮箱失败", zap.Error(err))
@@ -106,15 +108,16 @@ func (s *UserService) BindEmail(ctx context.Context, userID uint, email string) 
 	if exists {
 		return apperror.BadRequest("该邮箱已被绑定")
 	}
-	if err := s.repo.Update(ctx, userID, repository.UserUpdate{Email: &email}); err != nil {
+	if err := s.repo.Update(ctx, uc.UserID, repository.UserUpdate{Email: &email}); err != nil {
 		s.log.Error("绑定邮箱失败", zap.Error(err))
 		return apperror.Internal("绑定邮箱失败")
 	}
 	return nil
 }
 
-func (s *UserService) GetProfile(ctx context.Context, userID uint) (*model.User, error) {
-	user, err := s.repo.FindByID(ctx, userID)
+// FindByID 按 ID 查找用户，无权限检查，供管理员查看他人资料使用。
+func (s *UserService) FindByID(ctx context.Context, id uint) (*model.User, error) {
+	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperror.NotFound("用户不存在")
@@ -125,15 +128,40 @@ func (s *UserService) GetProfile(ctx context.Context, userID uint) (*model.User,
 	return user, nil
 }
 
-func (s *UserService) UpdateProfile(ctx context.Context, userID uint, in ProfileUpdateInput) (*model.User, error) {
-	user, err := s.GetProfile(ctx, userID)
-	if err != nil {
+func (s *UserService) GetProfile(ctx context.Context, uc *auth.UserContext) (*model.User, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
 		return nil, err
+	}
+	user, err := s.repo.FindByID(ctx, uc.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
+	}
+	return user, nil
+}
+
+func (s *UserService) UpdateProfile(ctx context.Context, uc *auth.UserContext, in ProfileUpdateInput) (*model.User, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return nil, err
+	}
+	user, err := s.repo.FindByID(ctx, uc.UserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
 	}
 	return s.updateUser(ctx, user, UpdateInput{Password: in.Password, Nickname: in.Nickname})
 }
 
-func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]model.User, int64, error) {
+func (s *UserService) ListUsers(ctx context.Context, uc *auth.UserContext, page, pageSize int) ([]model.User, int64, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, 0, err
+	}
 	users, total, err := s.repo.FindPage(ctx, page, pageSize)
 	if err != nil {
 		s.log.Error("查询用户列表失败", zap.Error(err))
@@ -142,15 +170,40 @@ func (s *UserService) ListUsers(ctx context.Context, page, pageSize int) ([]mode
 	return users, total, nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, id uint, in UpdateInput) (*model.User, error) {
-	user, err := s.GetProfile(ctx, id)
-	if err != nil {
+func (s *UserService) UpdateUser(ctx context.Context, uc *auth.UserContext, id uint, in UpdateInput) (*model.User, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
 		return nil, err
 	}
-	return s.updateUser(ctx, user, in)
+	target, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
+	}
+	// SuperAdmin 不可被 Admin 修改
+	if auth.Role(target.Role) == auth.RoleSuperAdmin && uc.Role != auth.RoleSuperAdmin {
+		return nil, apperror.Forbidden("无权修改超级管理员")
+	}
+	return s.updateUser(ctx, target, in)
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, id uint) error {
+func (s *UserService) DeleteUser(ctx context.Context, uc *auth.UserContext, id uint) error {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return err
+	}
+	target, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return apperror.Internal("查询失败")
+	}
+	if auth.Role(target.Role) == auth.RoleSuperAdmin && uc.Role != auth.RoleSuperAdmin {
+		return apperror.Forbidden("无权删除超级管理员")
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		s.log.Error("删除用户失败", zap.Error(err))
 		return apperror.Internal("删除失败")
@@ -165,17 +218,19 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 		if err != nil {
 			return nil, apperror.Internal("密码加密失败")
 		}
-		s := string(hashed)
-		upd.Password = &s
+		p := string(hashed)
+		upd.Password = &p
 	}
 	if in.Nickname != "" {
 		upd.Nickname = &in.Nickname
 	}
 	if in.Role != "" {
-		if in.Role != "admin" && in.Role != "user" {
-			return nil, apperror.BadRequest("无效的角色")
+		r := auth.ParseRole(in.Role)
+		if r != auth.RoleUser && r != auth.RoleModerator {
+			return nil, apperror.BadRequest("只能设置为 user 或 moderator")
 		}
-		upd.Role = &in.Role
+		ri := int(r)
+		upd.Role = &ri
 	}
 	if upd.Email == nil && upd.Nickname == nil && upd.Password == nil && upd.Role == nil {
 		return user, nil
@@ -184,17 +239,17 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 		s.log.Error("更新用户失败", zap.Error(err))
 		return nil, apperror.Internal("更新失败")
 	}
-	return s.GetProfile(ctx, user.ID)
+	return s.repo.FindByID(ctx, user.ID)
 }
 
-// SeedAdmin 当数据库中不存在任何 admin 用户时，使用配置信息创建一个。
+// SeedAdmin 当数据库中不存在任何 super_admin 用户时，使用配置信息创建一个。
 func (s *UserService) SeedAdmin(ctx context.Context, cfg *config.AdminConfig) {
 	if cfg == nil || cfg.Username == "" || cfg.Password == "" {
 		return
 	}
-	exists, err := s.repo.ExistsByRole(ctx, "admin")
+	exists, err := s.repo.ExistsByRole(ctx, int(auth.RoleSuperAdmin))
 	if err != nil {
-		s.log.Error("检查 admin 用户失败", zap.Error(err))
+		s.log.Error("检查 super_admin 用户失败", zap.Error(err))
 		return
 	}
 	if exists {
@@ -209,19 +264,19 @@ func (s *UserService) SeedAdmin(ctx context.Context, cfg *config.AdminConfig) {
 		Username: cfg.Username,
 		Nickname: cfg.Username,
 		Password: string(hashed),
-		Role:     "admin",
+		Role:     int(auth.RoleSuperAdmin),
 	}
 	if cfg.Email != "" {
 		user.Email = &cfg.Email
 	}
 	if err := s.repo.Create(ctx, user); err != nil {
-		s.log.Error("创建 admin 用户失败", zap.Error(err))
+		s.log.Error("创建 super_admin 用户失败", zap.Error(err))
 		return
 	}
-	s.log.Info("已自动创建 admin 用户", zap.String("username", cfg.Username))
+	s.log.Info("已自动创建 super_admin 用户", zap.String("username", cfg.Username))
 }
 
-// generateToken 签发 HS256 JWT，payload 包含 user_id、username、role。
+// generateToken 签发 HS256 JWT，payload 包含 user_id、username、role(int)。
 func (s *UserService) generateToken(user *model.User) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id":  user.ID,

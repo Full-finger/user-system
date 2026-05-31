@@ -47,7 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 	if cfg.Server.Env != "production" {
-		db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{})
+		db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{}, &model.NodeModerator{})
 	} else {
 		log.Warn("生产环境跳过 AutoMigrate，请使用迁移工具管理数据库结构")
 	}
@@ -74,6 +74,7 @@ func main() {
 	likeRepo := repository.NewLikeRepository(db)
 	followRepo := repository.NewFollowRepository(db)
 	nodeRepo := repository.NewNodeRepository(db)
+	nodeModRepo := repository.NewNodeModeratorRepository(db)
 	mentionRepo := repository.NewMentionRepository(db)
 
 	userSvc := service.NewUserService(userRepo, &cfg.JWT, log)
@@ -81,11 +82,11 @@ func main() {
 	nodeSvc := service.NewNodeService(nodeRepo, userRepo, mentionRepo, log)
 	nodeSvc.SeedNodes(context.Background())
 	userSvc.SeedAdmin(context.Background(), &cfg.Admin)
-	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeSvc, db, log)
+	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeModRepo, nodeSvc, db, log)
 	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
 	likeSvc := service.NewLikeService(likeRepo, log)
 
-	userCtrl := controller.NewUserController(userSvc, captchaSvc)
+	userCtrl := controller.NewUserController(userSvc, captchaSvc, &cfg.GuestJWT)
 	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, likeSvc)
 	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc, likeSvc)
 	followCtrl := controller.NewFollowController(followSvc, likeSvc)

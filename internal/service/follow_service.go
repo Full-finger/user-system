@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
 	"go.uber.org/zap"
@@ -24,8 +25,11 @@ func NewFollowService(followRepo repository.FollowRepository, userRepo repositor
 }
 
 // ToggleFollow 关注/取消关注，返回当前是否已关注。
-func (s *FollowService) ToggleFollow(ctx context.Context, followerID, followingID uint) (bool, error) {
-	if followerID == followingID {
+func (s *FollowService) ToggleFollow(ctx context.Context, uc *auth.UserContext, followingID uint) (bool, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return false, err
+	}
+	if uc.UserID == followingID {
 		return false, apperror.BadRequest("不能关注自己")
 	}
 	if _, err := s.userRepo.FindByID(ctx, followingID); err != nil {
@@ -36,21 +40,21 @@ func (s *FollowService) ToggleFollow(ctx context.Context, followerID, followingI
 		return false, apperror.Internal("查询失败")
 	}
 
-	followed, err := s.followRepo.Exists(ctx, followerID, followingID)
+	followed, err := s.followRepo.Exists(ctx, uc.UserID, followingID)
 	if err != nil {
 		s.log.Error("查询关注状态失败", zap.Error(err))
 		return false, apperror.Internal("查询失败")
 	}
 
 	if followed {
-		if err := s.followRepo.Delete(ctx, followerID, followingID); err != nil {
+		if err := s.followRepo.Delete(ctx, uc.UserID, followingID); err != nil {
 			s.log.Error("取消关注失败", zap.Error(err))
 			return false, apperror.Internal("取消关注失败")
 		}
 		return false, nil
 	}
 
-	if err := s.followRepo.Create(ctx, &model.Follow{FollowerID: followerID, FollowingID: followingID}); err != nil {
+	if err := s.followRepo.Create(ctx, &model.Follow{FollowerID: uc.UserID, FollowingID: followingID}); err != nil {
 		s.log.Error("关注失败", zap.Error(err))
 		return false, apperror.Internal("关注失败")
 	}
@@ -115,8 +119,11 @@ func (s *FollowService) GetUserProfile(ctx context.Context, userID uint) (*model
 }
 
 // FollowingIDs 获取当前用户关注的所有用户ID。
-func (s *FollowService) FollowingIDs(ctx context.Context, userID uint) ([]uint, error) {
-	ids, err := s.followRepo.FollowingIDs(ctx, userID)
+func (s *FollowService) FollowingIDs(ctx context.Context, uc *auth.UserContext) ([]uint, error) {
+	if err := uc.RequireRole(auth.RoleUser); err != nil {
+		return nil, err
+	}
+	ids, err := s.followRepo.FollowingIDs(ctx, uc.UserID)
 	if err != nil {
 		s.log.Error("查询关注列表失败", zap.Error(err))
 		return nil, apperror.Internal("查询失败")
@@ -137,14 +144,20 @@ func (s *FollowService) ResolveUsername(ctx context.Context, username string) (*
 	return user, nil
 }
 
-// IsFollowing 判断 followerID 是否已关注 followingID。
-func (s *FollowService) IsFollowing(ctx context.Context, followerID, followingID uint) (bool, error) {
-	return s.followRepo.Exists(ctx, followerID, followingID)
+// IsFollowing 判断当前用户是否已关注目标用户。
+func (s *FollowService) IsFollowing(ctx context.Context, uc *auth.UserContext, followingID uint) (bool, error) {
+	if uc.IsGuest() {
+		return false, nil
+	}
+	return s.followRepo.Exists(ctx, uc.UserID, followingID)
 }
 
 // FindFollowedUserIDs 批量查询当前用户关注了哪些用户，返回 userID → bool 映射。
-func (s *FollowService) FindFollowedUserIDs(ctx context.Context, followerID uint, userIDs []uint) (map[uint]bool, error) {
-	m, err := s.followRepo.FindFollowedUserIDs(ctx, followerID, userIDs)
+func (s *FollowService) FindFollowedUserIDs(ctx context.Context, uc *auth.UserContext, userIDs []uint) (map[uint]bool, error) {
+	if uc.IsGuest() || len(userIDs) == 0 {
+		return map[uint]bool{}, nil
+	}
+	m, err := s.followRepo.FindFollowedUserIDs(ctx, uc.UserID, userIDs)
 	if err != nil {
 		s.log.Error("批量查询关注状态失败", zap.Error(err))
 		return nil, apperror.Internal("查询失败")
