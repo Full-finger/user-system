@@ -78,9 +78,10 @@ func main() {
 	nodeSvc.SeedNodes(context.Background())
 	postSvc := service.NewPostService(postRepo, likeRepo, nodeRepo, nodeSvc, log)
 	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
+	likeSvc := service.NewLikeService(likeRepo, log)
 
 	userCtrl := controller.NewUserController(userSvc, captchaSvc)
-	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc)
+	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, likeSvc)
 
 	e := echo.New()
 	e.Validator = validator.New()

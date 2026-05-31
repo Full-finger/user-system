@@ -9,7 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Setup 注册所有 API 路由，分为公开、鉴权、管理员三组。
+// Setup 注册所有 API 路由，分为公开、可选鉴权、鉴权、管理员四组。
 func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, cfg *config.Config, rdb *redis.Client) {
 	api := e.Group("/api")
 
@@ -24,19 +24,29 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	public.POST("/send-code", userCtrl.SendCode)
 	public.POST("/code-login", userCtrl.CodeLogin)
 
-	// 节点（公开只读）
+	// 节点（公开只读，不需要 liked/followed 状态）
 	public.GET("/nodes", postCtrl.ListNodes)
 	public.GET("/nodes/:id", postCtrl.GetNode)
-	public.GET("/nodes/:id/posts", postCtrl.ListNodePosts)
 
-	// 帖子（公开只读）
-	public.GET("/posts", postCtrl.ListPosts)
-	public.GET("/posts/:id", postCtrl.GetPost)
-	public.GET("/users/:user_id/posts", postCtrl.ListUserPosts)
-	public.GET("/users/:user_id/likes", postCtrl.ListLikedPosts)
-	public.GET("/users/:user_id/followers", postCtrl.GetFollowers)
-	public.GET("/users/:user_id/followings", postCtrl.GetFollowings)
-	public.GET("/users/:user_id", postCtrl.GetUserProfile)
+	// ── 可选鉴权路由（IP 限流 + 可选 JWT） ──────────────
+	// 带 token 时返回个性化数据（liked/followed），不带时正常访问
+	optAuth := api.Group("")
+	optAuth.Use(middleware.RateLimitMiddleware(rdb, &cfg.RateLimit))
+	optAuth.Use(middleware.OptionalJWTMiddleware(&cfg.JWT))
+
+	// 节点帖子
+	optAuth.GET("/nodes/:id/posts", postCtrl.ListNodePosts)
+
+	// 帖子（带 liked 状态）
+	optAuth.GET("/posts", postCtrl.ListPosts)
+	optAuth.GET("/posts/:id", postCtrl.GetPost)
+
+	// 用户相关（带 followed/liked 状态）
+	optAuth.GET("/users/:user_id/posts", postCtrl.ListUserPosts)
+	optAuth.GET("/users/:user_id/likes", postCtrl.ListLikedPosts)
+	optAuth.GET("/users/:user_id/followers", postCtrl.GetFollowers)
+	optAuth.GET("/users/:user_id/followings", postCtrl.GetFollowings)
+	optAuth.GET("/users/:user_id", postCtrl.GetUserProfile)
 
 	// ── 需要鉴权的路由 ───────────────────────────────────
 	auth := api.Group("")
@@ -56,7 +66,7 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	auth.PUT("/users/:user_id/follow", postCtrl.ToggleFollow)
 
 	// ── 管理员路由 ──────────────────────────────────────
-	admin := auth.Group("")
+	admin := auth.Group("/admin")
 	admin.Use(middleware.AdminOnly())
 
 	admin.GET("/users", userCtrl.ListUsers)

@@ -5,6 +5,7 @@ import (
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/controller/param"
+	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -14,10 +15,11 @@ type PostController struct {
 	postSvc   *service.PostService
 	nodeSvc   *service.NodeService
 	followSvc *service.FollowService
+	likeSvc   *service.LikeService
 }
 
-func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeService, followSvc *service.FollowService) *PostController {
-	return &PostController{postSvc: postSvc, nodeSvc: nodeSvc, followSvc: followSvc}
+func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeService, followSvc *service.FollowService, likeSvc *service.LikeService) *PostController {
+	return &PostController{postSvc: postSvc, nodeSvc: nodeSvc, followSvc: followSvc, likeSvc: likeSvc}
 }
 
 func parsePage(c echo.Context) (page, size int) {
@@ -30,6 +32,12 @@ func parsePage(c echo.Context) (page, size int) {
 		size = 20
 	}
 	return
+}
+
+// optionalUserID 尝试从 context 获取当前登录用户 ID，未登录时返回 (0, false)。
+func optionalUserID(c echo.Context) (uint, bool) {
+	id, ok := c.Get("user_id").(uint)
+	return id, ok
 }
 
 // ── 节点 ───────────────────────────────────────────────────
@@ -67,12 +75,13 @@ func (ctrl *PostController) ListNodePosts(c echo.Context) error {
 		return apperror.BadRequest("无效的节点ID")
 	}
 	page, size := parsePage(c)
-	sort := c.QueryParam("sort") // "time"(default) or "replies"
+	sort := c.QueryParam("sort")
 	posts, total, err := ctrl.postSvc.ListPostsByNode(c.Request().Context(), uint(id), page, size, sort)
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToPostListResponse(posts, total, page, size))
+	likedMap := ctrl.buildLikedMap(c, posts)
+	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
 // ── 帖子 ───────────────────────────────────────────────────
@@ -91,9 +100,8 @@ func (ctrl *PostController) CreatePost(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	// 发帖后获取 mentions 用于响应
 	mentions, _ := ctrl.nodeSvc.GetMentions(c.Request().Context(), post.ID)
-	return success(c, param.ToPostResponse(post, mentions))
+	return success(c, param.ToPostResponse(post, mentions, nil))
 }
 
 // DeletePost 删帖。
@@ -123,7 +131,8 @@ func (ctrl *PostController) GetPost(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToPostResponse(post, mentions))
+	likedMap := ctrl.buildLikedMapForPosts(c, []uint{post.ID})
+	return success(c, param.ToPostResponse(post, mentions, likedMap))
 }
 
 // ListPosts 全站帖子列表。
@@ -133,7 +142,8 @@ func (ctrl *PostController) ListPosts(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToPostListResponse(posts, total, page, size))
+	likedMap := ctrl.buildLikedMap(c, posts)
+	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
 // ListUserPosts 某用户的帖子列表。
@@ -147,7 +157,8 @@ func (ctrl *PostController) ListUserPosts(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToPostListResponse(posts, total, page, size))
+	likedMap := ctrl.buildLikedMap(c, posts)
+	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
 // ListFeed 关注用户的帖子（时间线）。
@@ -165,7 +176,8 @@ func (ctrl *PostController) ListFeed(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToPostListResponse(posts, total, page, size))
+	likedMap := ctrl.buildLikedMap(c, posts)
+	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
 // ── 点赞 ───────────────────────────────────────────────────
@@ -198,7 +210,12 @@ func (ctrl *PostController) ListLikedPosts(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToLikedPostListResponse(likes, total, page, size))
+	postIDs := make([]uint, 0, len(likes))
+	for i := range likes {
+		postIDs = append(postIDs, likes[i].PostID)
+	}
+	likedMap := ctrl.buildLikedMapForPosts(c, postIDs)
+	return success(c, param.ToLikedPostListResponse(likes, total, page, size, likedMap))
 }
 
 // ── 关注 ───────────────────────────────────────────────────
@@ -231,7 +248,12 @@ func (ctrl *PostController) GetFollowers(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToFollowerListResponse(follows, total, page, size))
+	userIDs := make([]uint, 0, len(follows))
+	for i := range follows {
+		userIDs = append(userIDs, follows[i].FollowerID)
+	}
+	followedMap := ctrl.buildFollowedMap(c, userIDs)
+	return success(c, param.ToFollowerListResponse(follows, total, page, size, followedMap))
 }
 
 // GetFollowings 某用户的关注列表。
@@ -245,7 +267,12 @@ func (ctrl *PostController) GetFollowings(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToFollowingListResponse(follows, total, page, size))
+	userIDs := make([]uint, 0, len(follows))
+	for i := range follows {
+		userIDs = append(userIDs, follows[i].FollowingID)
+	}
+	followedMap := ctrl.buildFollowedMap(c, userIDs)
+	return success(c, param.ToFollowingListResponse(follows, total, page, size, followedMap))
 }
 
 // GetUserProfile 查看其他用户信息（含统计）。
@@ -258,5 +285,43 @@ func (ctrl *PostController) GetUserProfile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount))
+	followed := false
+	if currentID, ok := optionalUserID(c); ok && currentID != uint(uid) {
+		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), currentID, uint(uid))
+	}
+	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount, followed))
+}
+
+// ── 辅助方法 ───────────────────────────────────────────────
+
+// buildLikedMap 从帖子列表构建 likedMap，未登录时返回 nil。
+func (ctrl *PostController) buildLikedMap(c echo.Context, posts []model.Post) map[uint]bool {
+	if len(posts) == 0 {
+		return nil
+	}
+	ids := make([]uint, 0, len(posts))
+	for i := range posts {
+		ids = append(ids, posts[i].ID)
+	}
+	return ctrl.buildLikedMapForPosts(c, ids)
+}
+
+// buildLikedMapForPosts 从帖子 ID 列表构建 likedMap，未登录时返回 nil。
+func (ctrl *PostController) buildLikedMapForPosts(c echo.Context, postIDs []uint) map[uint]bool {
+	userID, ok := optionalUserID(c)
+	if !ok || len(postIDs) == 0 {
+		return nil
+	}
+	m, _ := ctrl.likeSvc.FindLikedPostIDs(c.Request().Context(), userID, postIDs)
+	return m
+}
+
+// buildFollowedMap 从用户 ID 列表构建 followedMap，未登录时返回 nil。
+func (ctrl *PostController) buildFollowedMap(c echo.Context, userIDs []uint) map[uint]bool {
+	userID, ok := optionalUserID(c)
+	if !ok || len(userIDs) == 0 {
+		return nil
+	}
+	m, _ := ctrl.followSvc.FindFollowedUserIDs(c.Request().Context(), userID, userIDs)
+	return m
 }
