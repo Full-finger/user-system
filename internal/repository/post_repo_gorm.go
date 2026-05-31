@@ -100,6 +100,14 @@ func (r *postRepoGorm) FindByUserIDs(ctx context.Context, userIDs []uint, page, 
 	return posts, total, nil
 }
 
+func (r *postRepoGorm) CountByUserID(ctx context.Context, userID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Post{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *postRepoGorm) IncrLikeCount(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&model.Post{}).Where("id = ?", id).
 		UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error

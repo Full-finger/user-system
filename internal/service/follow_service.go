@@ -79,7 +79,7 @@ func (s *FollowService) GetFollowings(ctx context.Context, userID uint, page, si
 
 // GetUserStats 获取用户的统计信息（帖子数、粉丝数、关注数）。
 func (s *FollowService) GetUserStats(ctx context.Context, userID uint) (postCount int64, followerCount int64, followingCount int64, err error) {
-	_, postCount, err = s.postRepo.FindByUserID(ctx, userID, 1, 1)
+	postCount, err = s.postRepo.CountByUserID(ctx, userID)
 	if err != nil {
 		s.log.Error("查询用户帖子数失败", zap.Error(err))
 		return 0, 0, 0, apperror.Internal("查询失败")
