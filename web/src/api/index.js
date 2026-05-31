@@ -33,6 +33,13 @@ api.interceptors.response.use(
         return Promise.reject(new Error('登录已过期，请重新登录'))
       }
     }
+    // 未登录时 403 等同于需要登录
+    if (err.response?.status === 403 && !localStorage.getItem('token')) {
+      if (router.currentRoute.value.name !== 'Login') {
+        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      }
+      return Promise.reject(new Error('请先登录'))
+    }
     const data = err.response?.data
     const message = data?.message || '请求失败，请稍后重试'
     if (!err.response) {

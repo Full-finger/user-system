@@ -12,7 +12,7 @@
                 {{ auth.user.nickname || auth.user.username }}
               </h1>
               <div class="profile-header__meta">
-                <span class="pill pill--accent">{{ auth.user.role === 'admin' ? '管理员' : '普通用户' }}</span>
+                <span class="pill pill--accent">{{ roleLabel(auth.user.role) }}</span>
                 <span class="text-3" style="font-size: 13px">
                   <PhClock :size="12" style="vertical-align: -1px" />
                   注册于 {{ formatDate(auth.user.created_at) }}
@@ -50,7 +50,7 @@
         </div>
         <div class="profile-info__row">
           <span class="text-3">角色</span>
-          <span class="pill pill--accent">{{ auth.user.role }}</span>
+          <span class="pill pill--accent">{{ roleLabel(auth.user.role) }}</span>
         </div>
         <div class="profile-info__row">
           <span class="text-3">邮箱</span>
@@ -85,6 +85,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { roleLabel } from '../utils/role'
 import { PhClock, PhGearSix, PhNote, PhChatCircle, PhHeart, PhChartBar } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()

@@ -49,7 +49,7 @@
             <PhThumbsUp :size="18" :weight="liked ? 'fill' : 'regular'" />
             <span>{{ post.like_count }}</span>
           </button>
-          <button v-if="isAuthor || auth.isAdmin" class="post-detail__action-btn post-detail__action-btn--danger" @click="handleDelete">
+          <button v-if="isAuthor || auth.canManagePosts" class="post-detail__action-btn post-detail__action-btn--danger" @click="handleDelete">
             <PhTrash :size="18" />
             <span>删除</span>
           </button>

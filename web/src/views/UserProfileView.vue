@@ -8,7 +8,7 @@
           <div class="profile-header__info">
             <h1 class="font-display profile-header__name">{{ profile.nickname || profile.username }}</h1>
             <div class="profile-header__meta">
-              <span class="pill pill--accent">{{ profile.role === 'admin' ? '管理员' : '普通用户' }}</span>
+              <span class="pill pill--accent">{{ roleLabel(profile.role) }}</span>
               <span class="text-3" style="font-size: 13px">
                 <PhClock :size="12" style="vertical-align: -1px" />
                 注册于 {{ formatDate(profile.created_at) }}
@@ -189,6 +189,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
+import { roleLabel } from '../utils/role'
 import { getUserProfile, listUserPosts, listUserLikes, getFollowers, getFollowings, toggleFollow } from '../api'
 import {
   PhClock, PhNote, PhHeart, PhUserPlus, PhUsers, PhThumbsUp,

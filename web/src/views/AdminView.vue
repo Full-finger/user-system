@@ -54,8 +54,8 @@
             </td>
             <td class="text-3" style="font-size: 13px">{{ user.email || '—' }}</td>
             <td>
-              <span class="pill" :class="user.role === 'admin' ? 'pill--accent' : 'pill--lavender'">
-                {{ user.role }}
+              <span class="pill" :class="ADMIN_ROLES.includes(user.role) ? 'pill--accent' : 'pill--lavender'">
+                {{ roleLabel(user.role) }}
               </span>
             </td>
             <td class="text-3" style="font-size: 13px">{{ formatDate(user.created_at) }}</td>
@@ -70,9 +70,9 @@
                 </button>
                 <button
                   class="btn btn--sm"
-                  :class="user.role === 'admin' ? '' : 'btn--danger'"
-                  :disabled="user.role === 'admin'"
-                  :title="user.role === 'admin' ? '不能删除管理员' : '删除'"
+                  :class="ADMIN_ROLES.includes(user.role) ? '' : 'btn--danger'"
+                  :disabled="ADMIN_ROLES.includes(user.role)"
+                  :title="ADMIN_ROLES.includes(user.role) ? '不能删除管理员' : '删除'"
                   @click="handleDelete(user)"
                 >
                   <PhTrash :size="13" />
@@ -154,6 +154,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useToast } from '../composables/useToast'
+import { roleLabel, ADMIN_ROLES } from '../utils/role'
 import { listUsers, updateUser, deleteUser } from '../api'
 import {
   PhArrowClockwise, PhPencil, PhTrash, PhCaretLeft, PhCaretRight,
