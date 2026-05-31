@@ -1,8 +1,8 @@
 # user-system
 
-Go + Vue3 用户系统，包含用户认证、帖子、节点、关注、点赞等功能。
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white) ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white) ![Echo](https://img.shields.io/badge/Echo-4.x-000000?logo=labstack&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
 
-**技术栈：** Go / Echo / GORM / PostgreSQL / Redis / Vue3 / Pinia / Vite
+Go 用户系统，包含用户认证、帖子、节点、关注、点赞等功能。
 
 ## 前置依赖
 
