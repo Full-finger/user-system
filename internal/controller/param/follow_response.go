@@ -59,7 +59,7 @@ func ToFollowerListResponse(follows []model.Follow, total int64, page, pageSize 
 			ID:        follows[i].ID,
 			User:      ToFollowUserResponse(&follows[i].Follower),
 			Followed:  followed,
-			CreatedAt: follows[i].Follower.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt: follows[i].CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
 	return FollowListResponse{
@@ -80,7 +80,7 @@ func ToFollowingListResponse(follows []model.Follow, total int64, page, pageSize
 			ID:        follows[i].ID,
 			User:      ToFollowUserResponse(&follows[i].Following),
 			Followed:  followed,
-			CreatedAt: follows[i].Following.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt: follows[i].CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
 	return FollowListResponse{
