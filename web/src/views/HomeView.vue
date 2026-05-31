@@ -157,7 +157,13 @@ async function fetchPosts(reset = true) {
     const params = { page: page.value, page_size: 20 }
     const res = activeTab.value === 'feed' ? await listFeed(params) : await listPosts(params)
     const list = res.data?.list || []
-    if (reset) posts.value = list; else posts.value.push(...list)
+    if (reset) {
+      posts.value = list
+      likedPosts.value = new Set(list.filter(p => p.liked).map(p => p.id))
+    } else {
+      posts.value.push(...list)
+      list.forEach(p => { if (p.liked) likedPosts.value.add(p.id) })
+    }
     hasMore.value = posts.value.length < (res.data?.total || 0)
   } catch (e) { toast.error(e.message) }
   finally { loading.value = false; loadingMore.value = false }

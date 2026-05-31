@@ -98,6 +98,7 @@ async function fetchPost() {
   try {
     const res = await getPost(route.params.id)
     post.value = res.data
+    liked.value = res.data?.liked || false
   } catch (e) {
     toast.error(e.message)
     post.value = null

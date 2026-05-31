@@ -48,16 +48,16 @@
 
       <!-- Tabs -->
       <div class="tab-bar fade-up" style="animation-delay: 80ms">
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'posts' }" @click="activeTab = 'posts'">
+        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'posts' }" @click="switchTab('posts')">
           <PhNote :size="14" /> 帖子
         </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'likes' }" @click="activeTab = 'likes'">
+        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'likes' }" @click="switchTab('likes')">
           <PhHeart :size="14" /> 点赞
         </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followers' }" @click="activeTab = 'followers'">
+        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followers' }" @click="switchTab('followers')">
           <PhUsers :size="14" /> 粉丝
         </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followings' }" @click="activeTab = 'followings'">
+        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followings' }" @click="switchTab('followings')">
           <PhUserPlus :size="14" /> 关注
         </button>
       </div>
@@ -87,8 +87,15 @@
             </div>
           </div>
         </div>
-        <div v-else class="empty-state card fade-up" style="padding: 32px">
+        <div v-else-if="!tabLoading.posts" class="empty-state card fade-up" style="padding: 32px">
           <p class="text-3" style="font-size: 14px">暂无帖子</p>
+        </div>
+        <div v-if="userPosts.length > 0" style="padding: 12px 0; text-align: center">
+          <button v-if="tabHasMore.posts" class="btn btn--outline btn--sm" @click="loadTabMore('posts')" :disabled="tabLoadingMore.posts">
+            <PhCircleNotch v-if="tabLoadingMore.posts" :size="14" class="spin" />
+            <span v-else>加载更多</span>
+          </button>
+          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
         </div>
       </div>
 
@@ -113,8 +120,15 @@
             </div>
           </div>
         </div>
-        <div v-else class="empty-state card fade-up" style="padding: 32px">
+        <div v-else-if="!tabLoading.likes" class="empty-state card fade-up" style="padding: 32px">
           <p class="text-3" style="font-size: 14px">暂无点赞</p>
+        </div>
+        <div v-if="userLikes.length > 0" style="padding: 12px 0; text-align: center">
+          <button v-if="tabHasMore.likes" class="btn btn--outline btn--sm" @click="loadTabMore('likes')" :disabled="tabLoadingMore.likes">
+            <PhCircleNotch v-if="tabLoadingMore.likes" :size="14" class="spin" />
+            <span v-else>加载更多</span>
+          </button>
+          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
         </div>
       </div>
 
@@ -126,7 +140,14 @@
             <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
         </div>
-        <div v-else class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无粉丝</p></div>
+        <div v-else-if="!tabLoading.followers" class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无粉丝</p></div>
+        <div v-if="followers.length > 0" style="padding: 12px 0; text-align: center">
+          <button v-if="tabHasMore.followers" class="btn btn--outline btn--sm" @click="loadTabMore('followers')" :disabled="tabLoadingMore.followers">
+            <PhCircleNotch v-if="tabLoadingMore.followers" :size="14" class="spin" />
+            <span v-else>加载更多</span>
+          </button>
+          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
+        </div>
       </div>
 
       <!-- Followings tab -->
@@ -137,7 +158,14 @@
             <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
           </div>
         </div>
-        <div v-else class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无关注</p></div>
+        <div v-else-if="!tabLoading.followings" class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无关注</p></div>
+        <div v-if="followings.length > 0" style="padding: 12px 0; text-align: center">
+          <button v-if="tabHasMore.followings" class="btn btn--outline btn--sm" @click="loadTabMore('followings')" :disabled="tabLoadingMore.followings">
+            <PhCircleNotch v-if="tabLoadingMore.followings" :size="14" class="spin" />
+            <span v-else>加载更多</span>
+          </button>
+          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
+        </div>
       </div>
     </template>
 
@@ -157,14 +185,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { getUserProfile, listUserPosts, listUserLikes, getFollowers, getFollowings, toggleFollow } from '../api'
 import {
   PhClock, PhNote, PhHeart, PhUserPlus, PhUsers, PhThumbsUp,
-  PhChatCircle, PhMagnifyingGlass
+  PhChatCircle, PhMagnifyingGlass, PhCircleNotch
 } from '@phosphor-icons/vue'
 
 const route = useRoute()
@@ -175,10 +203,21 @@ const profile = ref(null)
 const loading = ref(true)
 const followed = ref(false)
 const activeTab = ref('posts')
+
+// Tab data
 const userPosts = ref([])
 const userLikes = ref([])
 const followers = ref([])
 const followings = ref([])
+
+// Tab pagination state
+const tabPage = reactive({ posts: 1, likes: 1, followers: 1, followings: 1 })
+const tabHasMore = reactive({ posts: true, likes: true, followers: true, followings: true })
+const tabLoading = reactive({ posts: false, likes: false, followers: false, followings: false })
+const tabLoadingMore = reactive({ posts: false, likes: false, followers: false, followings: false })
+const tabTotal = reactive({ posts: 0, likes: 0, followers: 0, followings: 0 })
+
+const PAGE_SIZE = 20
 
 async function fetchAll() {
   loading.value = true
@@ -186,33 +225,68 @@ async function fetchAll() {
   try {
     const res = await getUserProfile(userId)
     profile.value = res.data
+    followed.value = res.data?.followed || false
   } catch (e) {
     profile.value = null
     loading.value = false
     return
   }
   loading.value = false
-  activeTab.value = 'posts'
-  loadTab()
+  switchTab('posts')
 }
 
-async function loadTab() {
+async function loadTab(tab, reset = true) {
   const userId = route.params.id
+  if (reset) {
+    tabPage[tab] = 1
+    tabHasMore[tab] = true
+    tabLoading[tab] = true
+  } else {
+    tabLoadingMore[tab] = true
+  }
+
   try {
-    if (activeTab.value === 'posts') {
-      const res = await listUserPosts(userId, { page: 1, page_size: 20 })
-      userPosts.value = res.data?.list || []
-    } else if (activeTab.value === 'likes') {
-      const res = await listUserLikes(userId, { page: 1, page_size: 20 })
-      userLikes.value = res.data?.list || []
-    } else if (activeTab.value === 'followers') {
-      const res = await getFollowers(userId, { page: 1, page_size: 20 })
-      followers.value = res.data?.list || []
-    } else if (activeTab.value === 'followings') {
-      const res = await getFollowings(userId, { page: 1, page_size: 20 })
-      followings.value = res.data?.list || []
+    const params = { page: tabPage[tab], page_size: PAGE_SIZE }
+    if (tab === 'posts') {
+      const res = await listUserPosts(userId, params)
+      const list = res.data?.list || []
+      if (reset) userPosts.value = list; else userPosts.value.push(...list)
+      tabTotal.posts = res.data?.total || 0
+      tabHasMore.posts = userPosts.value.length < tabTotal.posts
+    } else if (tab === 'likes') {
+      const res = await listUserLikes(userId, params)
+      const list = res.data?.list || []
+      if (reset) userLikes.value = list; else userLikes.value.push(...list)
+      tabTotal.likes = res.data?.total || 0
+      tabHasMore.likes = userLikes.value.length < tabTotal.likes
+    } else if (tab === 'followers') {
+      const res = await getFollowers(userId, params)
+      const list = res.data?.list || []
+      if (reset) followers.value = list; else followers.value.push(...list)
+      tabTotal.followers = res.data?.total || 0
+      tabHasMore.followers = followers.value.length < tabTotal.followers
+    } else if (tab === 'followings') {
+      const res = await getFollowings(userId, params)
+      const list = res.data?.list || []
+      if (reset) followings.value = list; else followings.value.push(...list)
+      tabTotal.followings = res.data?.total || 0
+      tabHasMore.followings = followings.value.length < tabTotal.followings
     }
   } catch (e) { toast.error(e.message) }
+  finally {
+    tabLoading[tab] = false
+    tabLoadingMore[tab] = false
+  }
+}
+
+function switchTab(tab) {
+  activeTab.value = tab
+  loadTab(tab, true)
+}
+
+function loadTabMore(tab) {
+  tabPage[tab]++
+  loadTab(tab, false)
 }
 
 async function handleFollow() {
@@ -238,9 +312,6 @@ function formatTime(dateStr) {
   if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
   return d.toLocaleDateString('zh-CN')
 }
-
-import { watch as vueWatch } from 'vue'
-vueWatch(activeTab, loadTab)
 
 onMounted(fetchAll)
 watch(() => route.params.id, fetchAll)
