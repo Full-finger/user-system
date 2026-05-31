@@ -7,14 +7,22 @@ import (
 	"github.com/full-finger/user-system/internal/model"
 )
 
+// UserUpdate 用户更新字段，nil 表示不更新。
+type UserUpdate struct {
+	Email    *string
+	Nickname *string
+	Password *string // 调用方需传入已哈希的密码
+	Role     *string
+}
+
 // UserRepository 用户数据访问接口。
 type UserRepository interface {
 	Create(ctx context.Context, user *model.User) error
 	FindByID(ctx context.Context, id uint) (*model.User, error)
 	FindByUsername(ctx context.Context, username string) (*model.User, error)
 	FindByEmail(ctx context.Context, email string) (*model.User, error)
-	// Update 按字段 map 部分更新，key 为列名。
-	Update(ctx context.Context, id uint, fields map[string]any) error
+	// Update 按非 nil 字段部分更新。
+	Update(ctx context.Context, id uint, upd UserUpdate) error
 	Delete(ctx context.Context, id uint) error
 	Count(ctx context.Context) (int64, error)
 	// FindPage 分页查询，返回当前页数据、总记录数。

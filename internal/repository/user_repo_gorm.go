@@ -44,8 +44,8 @@ func (r *userRepoGorm) FindByEmail(ctx context.Context, email string) (*model.Us
 	return &user, nil
 }
 
-func (r *userRepoGorm) Update(ctx context.Context, id uint, fields map[string]any) error {
-	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(fields).Error
+func (r *userRepoGorm) Update(ctx context.Context, id uint, upd UserUpdate) error {
+	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(upd).Error
 }
 
 func (r *userRepoGorm) Delete(ctx context.Context, id uint) error {

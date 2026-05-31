@@ -106,7 +106,7 @@ func (s *UserService) BindEmail(ctx context.Context, userID uint, email string) 
 	if exists {
 		return apperror.BadRequest("该邮箱已被绑定")
 	}
-	if err := s.repo.Update(ctx, userID, map[string]any{"email": email}); err != nil {
+	if err := s.repo.Update(ctx, userID, repository.UserUpdate{Email: &email}); err != nil {
 		s.log.Error("绑定邮箱失败", zap.Error(err))
 		return apperror.Internal("绑定邮箱失败")
 	}
@@ -159,27 +159,28 @@ func (s *UserService) DeleteUser(ctx context.Context, id uint) error {
 }
 
 func (s *UserService) updateUser(ctx context.Context, user *model.User, in UpdateInput) (*model.User, error) {
-	updates := map[string]any{}
+	upd := repository.UserUpdate{}
 	if in.Password != "" {
 		hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, apperror.Internal("密码加密失败")
 		}
-		updates["password"] = string(hashed)
+		s := string(hashed)
+		upd.Password = &s
 	}
 	if in.Nickname != "" {
-		updates["nickname"] = in.Nickname
+		upd.Nickname = &in.Nickname
 	}
 	if in.Role != "" {
 		if in.Role != "admin" && in.Role != "user" {
 			return nil, apperror.BadRequest("无效的角色")
 		}
-		updates["role"] = in.Role
+		upd.Role = &in.Role
 	}
-	if len(updates) == 0 {
+	if upd.Email == nil && upd.Nickname == nil && upd.Password == nil && upd.Role == nil {
 		return user, nil
 	}
-	if err := s.repo.Update(ctx, user.ID, updates); err != nil {
+	if err := s.repo.Update(ctx, user.ID, upd); err != nil {
 		s.log.Error("更新用户失败", zap.Error(err))
 		return nil, apperror.Internal("更新失败")
 	}
