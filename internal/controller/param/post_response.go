@@ -16,6 +16,7 @@ type NodeResponse struct {
 	ID        uint   `json:"id"`
 	Name      string `json:"name"`
 	Slug      string `json:"slug"`
+	Desc      string `json:"desc"`
 	Color     string `json:"color"`
 	Icon      string `json:"icon"`
 	PostCount int    `json:"post_count"`
@@ -29,17 +30,18 @@ type MentionResponse struct {
 
 // PostResponse 帖子响应。
 type PostResponse struct {
-	ID         uint             `json:"id"`
-	Title      string           `json:"title"`
-	Content    string           `json:"content"`
-	Node       NodeResponse     `json:"node"`
-	User       UserResponse     `json:"user"`
-	LikeCount  int              `json:"like_count"`
-	ReplyCount int              `json:"reply_count"`
-	ViewCount  int              `json:"view_count"`
+	ID         uint              `json:"id"`
+	Title      string            `json:"title"`
+	Content    string            `json:"content"`
+	Node       NodeResponse      `json:"node"`
+	User       UserResponse      `json:"user"`
+	LikeCount  int               `json:"like_count"`
+	ReplyCount int               `json:"reply_count"`
+	ViewCount  int               `json:"view_count"`
+	Liked      bool              `json:"liked"`
 	Mentions   []MentionResponse `json:"mentions,omitempty"`
-	CreatedAt  string           `json:"created_at"`
-	UpdatedAt  string           `json:"updated_at"`
+	CreatedAt  string            `json:"created_at"`
+	UpdatedAt  string            `json:"updated_at"`
 }
 
 // PostListResponse 帖子分页列表响应（列表不含 mentions 以减小体积）。
@@ -60,13 +62,15 @@ type PostListEntry struct {
 	LikeCount  int          `json:"like_count"`
 	ReplyCount int          `json:"reply_count"`
 	ViewCount  int          `json:"view_count"`
+	Liked      bool         `json:"liked"`
 	CreatedAt  string       `json:"created_at"`
 	UpdatedAt  string       `json:"updated_at"`
 }
 
 // LikedPostResponse 点赞帖子响应。
 type LikedPostResponse struct {
-	Post PostListEntry `json:"post"`
+	Post  PostListEntry `json:"post"`
+	Liked bool          `json:"liked"`
 }
 
 // LikedPostListResponse 点赞帖子分页列表响应。
@@ -88,6 +92,7 @@ func ToNodeResponse(n *model.Node) NodeResponse {
 		ID:        n.ID,
 		Name:      n.Name,
 		Slug:      n.Slug,
+		Desc:      n.Desc,
 		Color:     n.Color,
 		Icon:      n.Icon,
 		PostCount: n.PostCount,
@@ -102,8 +107,10 @@ func ToMentionResponse(m *model.Mention) MentionResponse {
 	}
 }
 
-// ToPostResponse 将 model.Post + mentions 转为详情响应。
-func ToPostResponse(p *model.Post, mentions []model.Mention) PostResponse {
+// ToPostResponse 将 model.Post + mentions + likedMap 转为详情响应。
+// likedMap 可为 nil（匿名用户时所有帖子 liked=false）。
+func ToPostResponse(p *model.Post, mentions []model.Mention, likedMap map[uint]bool) PostResponse {
+	liked := likedMap != nil && likedMap[p.ID]
 	resp := PostResponse{
 		ID:         p.ID,
 		Title:      p.Title,
@@ -113,6 +120,7 @@ func ToPostResponse(p *model.Post, mentions []model.Mention) PostResponse {
 		LikeCount:  p.LikeCount,
 		ReplyCount: p.ReplyCount,
 		ViewCount:  p.ViewCount,
+		Liked:      liked,
 		CreatedAt:  p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:  p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
@@ -122,7 +130,8 @@ func ToPostResponse(p *model.Post, mentions []model.Mention) PostResponse {
 	return resp
 }
 
-func toPostListEntry(p *model.Post) PostListEntry {
+func toPostListEntry(p *model.Post, likedMap map[uint]bool) PostListEntry {
+	liked := likedMap != nil && likedMap[p.ID]
 	return PostListEntry{
 		ID:         p.ID,
 		Title:      p.Title,
@@ -132,16 +141,18 @@ func toPostListEntry(p *model.Post) PostListEntry {
 		LikeCount:  p.LikeCount,
 		ReplyCount: p.ReplyCount,
 		ViewCount:  p.ViewCount,
+		Liked:      liked,
 		CreatedAt:  p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:  p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 
 // ToPostListResponse 将帖子切片转为分页列表响应。
-func ToPostListResponse(posts []model.Post, total int64, page, pageSize int) PostListResponse {
+// likedMap 可为 nil（匿名用户时所有帖子 liked=false）。
+func ToPostListResponse(posts []model.Post, total int64, page, pageSize int, likedMap map[uint]bool) PostListResponse {
 	list := make([]PostListEntry, 0, len(posts))
 	for i := range posts {
-		list = append(list, toPostListEntry(&posts[i]))
+		list = append(list, toPostListEntry(&posts[i], likedMap))
 	}
 	return PostListResponse{
 		List:     list,
@@ -152,11 +163,15 @@ func ToPostListResponse(posts []model.Post, total int64, page, pageSize int) Pos
 }
 
 // ToLikedPostListResponse 将点赞列表转为响应。
-func ToLikedPostListResponse(likes []model.Like, total int64, page, pageSize int) LikedPostListResponse {
+// likedMap 可为 nil，但点赞列表中的帖子 liked 始终为 true。
+func ToLikedPostListResponse(likes []model.Like, total int64, page, pageSize int, likedMap map[uint]bool) LikedPostListResponse {
 	list := make([]LikedPostResponse, 0, len(likes))
 	for i := range likes {
+		// 点赞列表中的帖子，当前用户一定已点赞（除非是查看他人的点赞列表且 likedMap 为空）
+		liked := likedMap != nil && likedMap[likes[i].PostID]
 		list = append(list, LikedPostResponse{
-			Post: toPostListEntry(&likes[i].Post),
+			Post:  toPostListEntry(&likes[i].Post, likedMap),
+			Liked: liked,
 		})
 	}
 	return LikedPostListResponse{

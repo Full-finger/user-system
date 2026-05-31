@@ -15,6 +15,7 @@ type FollowUserResponse struct {
 type FollowResponse struct {
 	ID        uint               `json:"id"`
 	User      FollowUserResponse `json:"user"`
+	Followed  bool               `json:"followed"`
 	CreatedAt string             `json:"created_at"`
 }
 
@@ -26,17 +27,17 @@ type FollowListResponse struct {
 	PageSize int              `json:"page_size"`
 }
 
-// UserProfileResponse 用户详情响应（含统计）。
+// UserProfileResponse 用户公开资料响应（含统计），不包含敏感字段。
 type UserProfileResponse struct {
 	ID             uint   `json:"id"`
 	Username       string `json:"username"`
 	Nickname       string `json:"nickname"`
-	Email          string `json:"email,omitempty"`
 	Role           string `json:"role"`
 	CreatedAt      string `json:"created_at"`
 	PostCount      int64  `json:"post_count"`
 	FollowerCount  int64  `json:"follower_count"`
 	FollowingCount int64  `json:"following_count"`
+	Followed       bool   `json:"followed"`
 }
 
 // ToFollowUserResponse 从 model.User 提取简要信息。
@@ -49,12 +50,15 @@ func ToFollowUserResponse(u *model.User) FollowUserResponse {
 }
 
 // ToFollowerListResponse 将粉丝列表转为响应。
-func ToFollowerListResponse(follows []model.Follow, total int64, page, pageSize int) FollowListResponse {
+// followedMap 可为 nil（匿名用户时所有用户 followed=false）。
+func ToFollowerListResponse(follows []model.Follow, total int64, page, pageSize int, followedMap map[uint]bool) FollowListResponse {
 	list := make([]FollowResponse, 0, len(follows))
 	for i := range follows {
+		followed := followedMap != nil && followedMap[follows[i].FollowerID]
 		list = append(list, FollowResponse{
 			ID:        follows[i].ID,
 			User:      ToFollowUserResponse(&follows[i].Follower),
+			Followed:  followed,
 			CreatedAt: follows[i].Follower.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
@@ -67,12 +71,15 @@ func ToFollowerListResponse(follows []model.Follow, total int64, page, pageSize 
 }
 
 // ToFollowingListResponse 将关注列表转为响应。
-func ToFollowingListResponse(follows []model.Follow, total int64, page, pageSize int) FollowListResponse {
+// followedMap 可为 nil（匿名用户时所有用户 followed=false）。
+func ToFollowingListResponse(follows []model.Follow, total int64, page, pageSize int, followedMap map[uint]bool) FollowListResponse {
 	list := make([]FollowResponse, 0, len(follows))
 	for i := range follows {
+		followed := followedMap != nil && followedMap[follows[i].FollowingID]
 		list = append(list, FollowResponse{
 			ID:        follows[i].ID,
 			User:      ToFollowUserResponse(&follows[i].Following),
+			Followed:  followed,
 			CreatedAt: follows[i].Following.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		})
 	}
@@ -84,8 +91,9 @@ func ToFollowingListResponse(follows []model.Follow, total int64, page, pageSize
 	}
 }
 
-// ToUserProfileResponse 将用户信息+统计转为响应。
-func ToUserProfileResponse(u *model.User, postCount, followerCount, followingCount int64) UserProfileResponse {
+// ToUserProfileResponse 将用户信息+统计转为公开资料响应。
+// followed 为当前用户是否已关注该用户。
+func ToUserProfileResponse(u *model.User, postCount, followerCount, followingCount int64, followed bool) UserProfileResponse {
 	r := UserProfileResponse{
 		ID:             u.ID,
 		Username:       u.Username,
@@ -95,9 +103,7 @@ func ToUserProfileResponse(u *model.User, postCount, followerCount, followingCou
 		PostCount:      postCount,
 		FollowerCount:  followerCount,
 		FollowingCount: followingCount,
-	}
-	if u.Email != nil {
-		r.Email = *u.Email
+		Followed:       followed,
 	}
 	return r
 }
