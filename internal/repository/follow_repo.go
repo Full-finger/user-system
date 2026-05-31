@@ -16,4 +16,5 @@ type FollowRepository interface {
 	FollowingIDs(ctx context.Context, userID uint) ([]uint, error)
 	CountFollowers(ctx context.Context, userID uint) (int64, error)
 	CountFollowings(ctx context.Context, userID uint) (int64, error)
+	FindFollowedUserIDs(ctx context.Context, followerID uint, userIDs []uint) (map[uint]bool, error)
 }

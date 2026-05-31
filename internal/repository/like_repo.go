@@ -12,4 +12,5 @@ type LikeRepository interface {
 	Delete(ctx context.Context, userID, postID uint) error
 	Exists(ctx context.Context, userID, postID uint) (bool, error)
 	FindByUserID(ctx context.Context, userID uint, page, size int) ([]model.Like, int64, error)
+	FindLikedPostIDs(ctx context.Context, userID uint, postIDs []uint) (map[uint]bool, error)
 }

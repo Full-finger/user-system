@@ -45,3 +45,20 @@ func (r *likeRepoGorm) FindByUserID(ctx context.Context, userID uint, page, size
 	}
 	return likes, total, nil
 }
+
+func (r *likeRepoGorm) FindLikedPostIDs(ctx context.Context, userID uint, postIDs []uint) (map[uint]bool, error) {
+	result := make(map[uint]bool, len(postIDs))
+	if len(postIDs) == 0 {
+		return result, nil
+	}
+	var likedIDs []uint
+	if err := r.db.WithContext(ctx).Model(&model.Like{}).
+		Where("user_id = ? AND post_id IN ?", userID, postIDs).
+		Pluck("post_id", &likedIDs).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range likedIDs {
+		result[id] = true
+	}
+	return result, nil
+}

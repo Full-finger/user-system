@@ -83,3 +83,20 @@ func (r *followRepoGorm) CountFollowings(ctx context.Context, userID uint) (int6
 	}
 	return count, nil
 }
+
+func (r *followRepoGorm) FindFollowedUserIDs(ctx context.Context, followerID uint, userIDs []uint) (map[uint]bool, error) {
+	result := make(map[uint]bool, len(userIDs))
+	if len(userIDs) == 0 {
+		return result, nil
+	}
+	var followedIDs []uint
+	if err := r.db.WithContext(ctx).Model(&model.Follow{}).
+		Where("follower_id = ? AND following_id IN ?", followerID, userIDs).
+		Pluck("following_id", &followedIDs).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range followedIDs {
+		result[id] = true
+	}
+	return result, nil
+}
