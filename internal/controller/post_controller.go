@@ -24,7 +24,7 @@ func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeServic
 func (ctrl *PostController) CreatePost(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	var req param.CreatePostRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	post, err := ctrl.postSvc.CreatePost(c.Request().Context(), uc, req.NodeID, req.Title, req.Content)

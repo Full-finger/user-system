@@ -33,16 +33,6 @@ func success(c echo.Context, data any) error {
 	})
 }
 
-func bindAndValidate(c echo.Context, req any) error {
-	if err := c.Bind(req); err != nil {
-		return apperror.BadRequest("参数错误")
-	}
-	if err := c.Validate(req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	return nil
-}
-
 func (ctrl *UserController) GuestToken(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	token, err := auth.GenerateGuestToken(uc.DeviceID, ctrl.guestCfg)
@@ -68,7 +58,7 @@ func (ctrl *UserController) CheckUsername(c echo.Context) error {
 
 func (ctrl *UserController) Register(c echo.Context) error {
 	var req param.RegisterRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
@@ -88,7 +78,7 @@ func (ctrl *UserController) Register(c echo.Context) error {
 
 func (ctrl *UserController) Login(c echo.Context) error {
 	var req param.LoginRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	token, err := ctrl.svc.Login(c.Request().Context(), service.LoginInput{
@@ -113,7 +103,7 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	var req param.UpdateRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), uc, service.ProfileUpdateInput{
@@ -162,7 +152,7 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 		return apperror.BadRequest("无效的ID")
 	}
 	var req param.UpdateRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	uc := auth.GetUserContext(c)
@@ -191,7 +181,7 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 
 func (ctrl *UserController) SendCode(c echo.Context) error {
 	var req param.SendCodeRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.SendCode(c.Request().Context(), req.Email); err != nil {
@@ -202,7 +192,7 @@ func (ctrl *UserController) SendCode(c echo.Context) error {
 
 func (ctrl *UserController) CodeLogin(c echo.Context) error {
 	var req param.CodeLoginRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
@@ -218,7 +208,7 @@ func (ctrl *UserController) CodeLogin(c echo.Context) error {
 func (ctrl *UserController) BindEmail(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	var req param.BindEmailRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
