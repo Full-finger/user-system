@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
@@ -13,11 +14,10 @@ import (
 type NodeController struct {
 	nodeSvc *service.NodeService
 	postSvc *service.PostService
-	likeSvc *service.LikeService
 }
 
-func NewNodeController(nodeSvc *service.NodeService, postSvc *service.PostService, likeSvc *service.LikeService) *NodeController {
-	return &NodeController{nodeSvc: nodeSvc, postSvc: postSvc, likeSvc: likeSvc}
+func NewNodeController(nodeSvc *service.NodeService, postSvc *service.PostService) *NodeController {
+	return &NodeController{nodeSvc: nodeSvc, postSvc: postSvc}
 }
 
 // ListNodes 获取所有节点。
@@ -48,16 +48,16 @@ func (ctrl *NodeController) GetNode(c echo.Context) error {
 
 // ListNodePosts 按节点查看帖子，sort=time|replies。
 func (ctrl *NodeController) ListNodePosts(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		return apperror.BadRequest("无效的节点ID")
 	}
 	page, size := parsePage(c)
 	sort := c.QueryParam("sort")
-	posts, total, err := ctrl.postSvc.ListPostsByNode(c.Request().Context(), uint(id), page, size, sort)
+	posts, total, likedMap, err := ctrl.postSvc.ListPostsByNode(c.Request().Context(), uc, uint(id), page, size, sort)
 	if err != nil {
 		return err
 	}
-	likedMap := buildLikedMap(c, posts, ctrl.likeSvc)
 	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }

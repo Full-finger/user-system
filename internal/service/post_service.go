@@ -18,6 +18,7 @@ import (
 type PostService struct {
 	postRepo    repository.PostRepository
 	likeRepo    repository.LikeRepository
+	likeSvc     *LikeService
 	nodeRepo    repository.NodeRepository
 	nodeModRepo repository.NodeModeratorRepository
 	nodeSvc     *NodeService
@@ -25,8 +26,8 @@ type PostService struct {
 	log         *zap.Logger
 }
 
-func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository, nodeModRepo repository.NodeModeratorRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
-	return &PostService{postRepo: postRepo, likeRepo: likeRepo, nodeRepo: nodeRepo, nodeModRepo: nodeModRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
+func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, likeSvc *LikeService, nodeRepo repository.NodeRepository, nodeModRepo repository.NodeModeratorRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
+	return &PostService{postRepo: postRepo, likeRepo: likeRepo, likeSvc: likeSvc, nodeRepo: nodeRepo, nodeModRepo: nodeModRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
 }
 
 // CreatePost 发帖。
@@ -121,69 +122,74 @@ func (s *PostService) canDeletePost(ctx context.Context, uc *auth.UserContext, p
 }
 
 // GetPost 查看帖子详情（自增浏览数）。
-func (s *PostService) GetPost(ctx context.Context, code string) (*model.Post, []model.Mention, error) {
+func (s *PostService) GetPost(ctx context.Context, uc *auth.UserContext, code string) (*model.Post, []model.Mention, map[uint]bool, error) {
 	post, err := s.postRepo.FindByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil, apperror.NotFound("帖子不存在")
+			return nil, nil, nil, apperror.NotFound("帖子不存在")
 		}
 		s.log.Error("查询帖子失败", zap.Error(err))
-		return nil, nil, apperror.Internal("查询失败")
+		return nil, nil, nil, apperror.Internal("查询失败")
 	}
 	_ = s.postRepo.IncrViewCount(ctx, post.ID)
 	post.ViewCount++
 
 	mentions, _ := s.nodeSvc.GetMentions(ctx, post.ID)
-	return post, mentions, nil
+	likedMap := s.buildLikedMap(ctx, uc, []uint{post.ID})
+	return post, mentions, likedMap, nil
 }
 
 // ListPosts 全站帖子列表（时间倒序）。
-func (s *PostService) ListPosts(ctx context.Context, page, size int) ([]model.Post, int64, error) {
+func (s *PostService) ListPosts(ctx context.Context, uc *auth.UserContext, page, size int) ([]model.Post, int64, map[uint]bool, error) {
 	posts, total, err := s.postRepo.FindPage(ctx, page, size)
 	if err != nil {
 		s.log.Error("查询帖子列表失败", zap.Error(err))
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
-	return posts, total, nil
+	likedMap := s.buildLikedMap(ctx, uc, postIDs(posts))
+	return posts, total, likedMap, nil
 }
 
 // ListPostsByNode 按节点查看帖子。
-func (s *PostService) ListPostsByNode(ctx context.Context, nodeID uint, page, size int, sort string) ([]model.Post, int64, error) {
+func (s *PostService) ListPostsByNode(ctx context.Context, uc *auth.UserContext, nodeID uint, page, size int, sort string) ([]model.Post, int64, map[uint]bool, error) {
 	if _, err := s.nodeRepo.FindByID(ctx, nodeID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, apperror.NotFound("节点不存在")
+			return nil, 0, nil, apperror.NotFound("节点不存在")
 		}
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
 	posts, total, err := s.postRepo.FindByNodeID(ctx, nodeID, page, size, sort)
 	if err != nil {
 		s.log.Error("查询节点帖子失败", zap.Error(err))
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
-	return posts, total, nil
+	likedMap := s.buildLikedMap(ctx, uc, postIDs(posts))
+	return posts, total, likedMap, nil
 }
 
 // ListUserPosts 某用户的帖子列表。
-func (s *PostService) ListUserPosts(ctx context.Context, userID uint, page, size int) ([]model.Post, int64, error) {
+func (s *PostService) ListUserPosts(ctx context.Context, uc *auth.UserContext, userID uint, page, size int) ([]model.Post, int64, map[uint]bool, error) {
 	posts, total, err := s.postRepo.FindByUserID(ctx, userID, page, size)
 	if err != nil {
 		s.log.Error("查询用户帖子失败", zap.Error(err))
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
-	return posts, total, nil
+	likedMap := s.buildLikedMap(ctx, uc, postIDs(posts))
+	return posts, total, likedMap, nil
 }
 
 // ListFeed 关注用户的帖子列表（时间线）。
-func (s *PostService) ListFeed(ctx context.Context, followingIDs []uint, page, size int) ([]model.Post, int64, error) {
+func (s *PostService) ListFeed(ctx context.Context, uc *auth.UserContext, followingIDs []uint, page, size int) ([]model.Post, int64, map[uint]bool, error) {
 	if len(followingIDs) == 0 {
-		return []model.Post{}, 0, nil
+		return []model.Post{}, 0, nil, nil
 	}
 	posts, total, err := s.postRepo.FindByUserIDs(ctx, followingIDs, page, size)
 	if err != nil {
 		s.log.Error("查询 Feed 失败", zap.Error(err))
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
-	return posts, total, nil
+	likedMap := s.buildLikedMap(ctx, uc, postIDs(posts))
+	return posts, total, likedMap, nil
 }
 
 // ToggleLike 点赞/取消点赞，返回当前是否已赞。
@@ -269,13 +275,36 @@ func (s *PostService) AdminDeletePost(ctx context.Context, uc *auth.UserContext,
 }
 
 // ListLikedPosts 某用户点赞过的帖子列表。
-func (s *PostService) ListLikedPosts(ctx context.Context, userID uint, page, size int) ([]model.Like, int64, error) {
+func (s *PostService) ListLikedPosts(ctx context.Context, uc *auth.UserContext, userID uint, page, size int) ([]model.Like, int64, map[uint]bool, error) {
 	likes, total, err := s.likeRepo.FindByUserID(ctx, userID, page, size)
 	if err != nil {
 		s.log.Error("查询点赞列表失败", zap.Error(err))
-		return nil, 0, apperror.Internal("查询失败")
+		return nil, 0, nil, apperror.Internal("查询失败")
 	}
-	return likes, total, nil
+	ids := make([]uint, 0, len(likes))
+	for i := range likes {
+		ids = append(ids, likes[i].PostID)
+	}
+	likedMap := s.buildLikedMap(ctx, uc, ids)
+	return likes, total, likedMap, nil
+}
+
+// buildLikedMap 根据用户身份构建点赞映射，Guest 返回 nil。
+func (s *PostService) buildLikedMap(ctx context.Context, uc *auth.UserContext, ids []uint) map[uint]bool {
+	if uc.IsGuest() || len(ids) == 0 {
+		return nil
+	}
+	m, _ := s.likeSvc.FindLikedPostIDs(ctx, uc, ids)
+	return m
+}
+
+// postIDs 从帖子切片提取 ID 列表。
+func postIDs(posts []model.Post) []uint {
+	ids := make([]uint, 0, len(posts))
+	for i := range posts {
+		ids = append(ids, posts[i].ID)
+	}
+	return ids
 }
 
 func (s *PostService) generateUniqueCode(ctx context.Context) (string, error) {

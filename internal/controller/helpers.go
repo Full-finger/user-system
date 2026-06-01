@@ -4,7 +4,6 @@ import (
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
-	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
@@ -30,36 +29,4 @@ func resolveUsername(c echo.Context, followSvc *service.FollowService) (*model.U
 		return nil, apperror.BadRequest("缺少用户名")
 	}
 	return followSvc.ResolveUsername(c.Request().Context(), username)
-}
-
-// buildLikedMap 从帖子列表构建 likedMap，Guest 时返回 nil。
-func buildLikedMap(c echo.Context, posts []model.Post, likeSvc *service.LikeService) map[uint]bool {
-	if len(posts) == 0 {
-		return nil
-	}
-	ids := make([]uint, 0, len(posts))
-	for i := range posts {
-		ids = append(ids, posts[i].ID)
-	}
-	return buildLikedMapForPosts(c, ids, likeSvc)
-}
-
-// buildLikedMapForPosts 从帖子 ID 列表构建 likedMap，Guest 时返回 nil。
-func buildLikedMapForPosts(c echo.Context, postIDs []uint, likeSvc *service.LikeService) map[uint]bool {
-	uc := auth.GetUserContext(c)
-	if uc.IsGuest() || len(postIDs) == 0 {
-		return nil
-	}
-	m, _ := likeSvc.FindLikedPostIDs(c.Request().Context(), uc, postIDs)
-	return m
-}
-
-// buildFollowedMap 从用户 ID 列表构建 followedMap，Guest 时返回 nil。
-func buildFollowedMap(c echo.Context, userIDs []uint, followSvc *service.FollowService) map[uint]bool {
-	uc := auth.GetUserContext(c)
-	if uc.IsGuest() || len(userIDs) == 0 {
-		return nil
-	}
-	m, _ := followSvc.FindFollowedUserIDs(c.Request().Context(), uc, userIDs)
-	return m
 }

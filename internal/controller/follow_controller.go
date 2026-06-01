@@ -10,11 +10,10 @@ import (
 // FollowController 关注 / 用户资料相关接口的处理器。
 type FollowController struct {
 	followSvc *service.FollowService
-	likeSvc   *service.LikeService
 }
 
-func NewFollowController(followSvc *service.FollowService, likeSvc *service.LikeService) *FollowController {
-	return &FollowController{followSvc: followSvc, likeSvc: likeSvc}
+func NewFollowController(followSvc *service.FollowService) *FollowController {
+	return &FollowController{followSvc: followSvc}
 }
 
 // ToggleFollow 关注/取消关注。
@@ -33,39 +32,31 @@ func (ctrl *FollowController) ToggleFollow(c echo.Context) error {
 
 // GetFollowers 某用户的粉丝列表。
 func (ctrl *FollowController) GetFollowers(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
 	page, size := parsePage(c)
-	follows, total, err := ctrl.followSvc.GetFollowers(c.Request().Context(), target.ID, page, size)
+	follows, total, followedMap, err := ctrl.followSvc.GetFollowers(c.Request().Context(), uc, target.ID, page, size)
 	if err != nil {
 		return err
 	}
-	userIDs := make([]uint, 0, len(follows))
-	for i := range follows {
-		userIDs = append(userIDs, follows[i].FollowerID)
-	}
-	followedMap := buildFollowedMap(c, userIDs, ctrl.followSvc)
 	return success(c, param.ToFollowerListResponse(follows, total, page, size, followedMap))
 }
 
 // GetFollowings 某用户的关注列表。
 func (ctrl *FollowController) GetFollowings(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
 	page, size := parsePage(c)
-	follows, total, err := ctrl.followSvc.GetFollowings(c.Request().Context(), target.ID, page, size)
+	follows, total, followedMap, err := ctrl.followSvc.GetFollowings(c.Request().Context(), uc, target.ID, page, size)
 	if err != nil {
 		return err
 	}
-	userIDs := make([]uint, 0, len(follows))
-	for i := range follows {
-		userIDs = append(userIDs, follows[i].FollowingID)
-	}
-	followedMap := buildFollowedMap(c, userIDs, ctrl.followSvc)
 	return success(c, param.ToFollowingListResponse(follows, total, page, size, followedMap))
 }
 
@@ -76,13 +67,9 @@ func (ctrl *FollowController) GetUserProfile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	user, postCount, followerCount, followingCount, err := ctrl.followSvc.GetUserProfile(c.Request().Context(), target.ID)
+	user, postCount, followerCount, followingCount, followed, err := ctrl.followSvc.GetUserProfile(c.Request().Context(), uc, target.ID)
 	if err != nil {
 		return err
-	}
-	followed := false
-	if !uc.IsGuest() && uc.UserID != target.ID {
-		followed, _ = ctrl.followSvc.IsFollowing(c.Request().Context(), uc, target.ID)
 	}
 	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount, followed))
 }

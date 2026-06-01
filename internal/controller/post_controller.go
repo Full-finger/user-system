@@ -13,11 +13,10 @@ type PostController struct {
 	postSvc   *service.PostService
 	nodeSvc   *service.NodeService
 	followSvc *service.FollowService
-	likeSvc   *service.LikeService
 }
 
-func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeService, followSvc *service.FollowService, likeSvc *service.LikeService) *PostController {
-	return &PostController{postSvc: postSvc, nodeSvc: nodeSvc, followSvc: followSvc, likeSvc: likeSvc}
+func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeService, followSvc *service.FollowService) *PostController {
+	return &PostController{postSvc: postSvc, nodeSvc: nodeSvc, followSvc: followSvc}
 }
 
 // CreatePost 发帖。
@@ -50,41 +49,41 @@ func (ctrl *PostController) DeletePost(c echo.Context) error {
 
 // GetPost 查看帖子详情。
 func (ctrl *PostController) GetPost(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	code := c.Param("id")
 	if code == "" {
 		return apperror.BadRequest("无效的ID")
 	}
-	post, mentions, err := ctrl.postSvc.GetPost(c.Request().Context(), code)
+	post, mentions, likedMap, err := ctrl.postSvc.GetPost(c.Request().Context(), uc, code)
 	if err != nil {
 		return err
 	}
-	likedMap := buildLikedMapForPosts(c, []uint{post.ID}, ctrl.likeSvc)
 	return success(c, param.ToPostResponse(post, mentions, likedMap))
 }
 
 // ListPosts 全站帖子列表。
 func (ctrl *PostController) ListPosts(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	page, size := parsePage(c)
-	posts, total, err := ctrl.postSvc.ListPosts(c.Request().Context(), page, size)
+	posts, total, likedMap, err := ctrl.postSvc.ListPosts(c.Request().Context(), uc, page, size)
 	if err != nil {
 		return err
 	}
-	likedMap := buildLikedMap(c, posts, ctrl.likeSvc)
 	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
 // ListUserPosts 某用户的帖子列表。
 func (ctrl *PostController) ListUserPosts(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
 	page, size := parsePage(c)
-	posts, total, err := ctrl.postSvc.ListUserPosts(c.Request().Context(), target.ID, page, size)
+	posts, total, likedMap, err := ctrl.postSvc.ListUserPosts(c.Request().Context(), uc, target.ID, page, size)
 	if err != nil {
 		return err
 	}
-	likedMap := buildLikedMap(c, posts, ctrl.likeSvc)
 	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
@@ -96,11 +95,10 @@ func (ctrl *PostController) ListFeed(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	posts, total, err := ctrl.postSvc.ListFeed(c.Request().Context(), ids, page, size)
+	posts, total, likedMap, err := ctrl.postSvc.ListFeed(c.Request().Context(), uc, ids, page, size)
 	if err != nil {
 		return err
 	}
-	likedMap := buildLikedMap(c, posts, ctrl.likeSvc)
 	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
 
@@ -133,19 +131,15 @@ func (ctrl *PostController) AdminDeletePost(c echo.Context) error {
 
 // ListLikedPosts 某用户点赞过的帖子。
 func (ctrl *PostController) ListLikedPosts(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
 	page, size := parsePage(c)
-	likes, total, err := ctrl.postSvc.ListLikedPosts(c.Request().Context(), target.ID, page, size)
+	likes, total, likedMap, err := ctrl.postSvc.ListLikedPosts(c.Request().Context(), uc, target.ID, page, size)
 	if err != nil {
 		return err
 	}
-	postIDs := make([]uint, 0, len(likes))
-	for i := range likes {
-		postIDs = append(postIDs, likes[i].PostID)
-	}
-	likedMap := buildLikedMapForPosts(c, postIDs, ctrl.likeSvc)
 	return success(c, param.ToLikedPostListResponse(likes, total, page, size, likedMap))
 }
