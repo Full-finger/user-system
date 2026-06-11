@@ -30,7 +30,7 @@ func ToUserResponse(u *model.User) UserResponse {
 		Username:  u.Username,
 		Nickname:  u.Nickname,
 		Role:      auth.Role(u.Role).String(),
-		CreatedAt: u.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: u.CreatedAt.Format(TimeFormat),
 	}
 	if u.Email != nil {
 		r.Email = *u.Email

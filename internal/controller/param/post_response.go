@@ -114,8 +114,8 @@ func ToPostResponse(p *model.Post, mentions []model.Mention, likedMap map[uint]b
 		ReplyCount: p.ReplyCount,
 		ViewCount:  p.ViewCount,
 		Liked:      liked,
-		CreatedAt:  p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:  p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:  p.CreatedAt.Format(TimeFormat),
+		UpdatedAt:  p.UpdatedAt.Format(TimeFormat),
 	}
 	for i := range mentions {
 		resp.Mentions = append(resp.Mentions, ToMentionResponse(&mentions[i]))
@@ -135,8 +135,8 @@ func toPostListEntry(p *model.Post, likedMap map[uint]bool) PostListEntry {
 		ReplyCount: p.ReplyCount,
 		ViewCount:  p.ViewCount,
 		Liked:      liked,
-		CreatedAt:  p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:  p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:  p.CreatedAt.Format(TimeFormat),
+		UpdatedAt:  p.UpdatedAt.Format(TimeFormat),
 	}
 }
 
