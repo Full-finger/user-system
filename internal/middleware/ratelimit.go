@@ -1,14 +1,13 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/pkg/randstr"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 )
@@ -32,7 +31,7 @@ func RateLimitMiddleware(rdb *redis.Client, cfg *config.RateLimitConfig) echo.Mi
 			now := time.Now().UnixMilli()
 			windowMs := window.Milliseconds()
 			ctx := c.Request().Context()
-			member := randMember()
+			member := randstr.RandomHex(8)
 
 			pipe := rdb.Pipeline()
 			pipe.ZRemRangeByScore(ctx, key, "-inf", fmt.Sprintf("%d", now-windowMs))
@@ -60,12 +59,4 @@ func rateLimitKey(uc *auth.UserContext, path, ip string) string {
 		return fmt.Sprintf("rl:d:%s:%s", uc.DeviceID, path)
 	}
 	return fmt.Sprintf("rl:ip:%s:%s", ip, path)
-}
-
-func randMember() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
 }

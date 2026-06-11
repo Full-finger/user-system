@@ -1,14 +1,12 @@
 package middleware
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/pkg/randstr"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
@@ -40,7 +38,7 @@ func parseIdentity(c echo.Context, cfg *config.JWTConfig, guestCfg *config.Guest
 
 	// 无 token 或解析失败 → Guest
 	if uc.DeviceID == "" {
-		uc.DeviceID = randomDeviceID()
+		uc.DeviceID = randstr.RandomHex(16)
 	}
 	return uc
 }
@@ -109,12 +107,4 @@ func extractGuestClaims(claims jwt.Claims) *auth.UserContext {
 		Role:     auth.RoleGuest,
 		DeviceID: deviceID,
 	}
-}
-
-func randomDeviceID() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(b)
 }
