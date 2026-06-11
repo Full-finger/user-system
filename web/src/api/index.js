@@ -118,20 +118,20 @@ export function listPosts(params) {
   return api.get('/posts', { params })
 }
 
-export function getPost(id) {
-  return api.get(`/posts/${id}`)
+export function getPost(code) {
+  return api.get(`/posts/${code}`)
 }
 
 export function createPost(data) {
   return api.post('/posts', data)
 }
 
-export function deletePost(id) {
-  return api.delete(`/posts/${id}`)
+export function deletePost(code) {
+  return api.delete(`/posts/${code}`)
 }
 
-export function toggleLikePost(id) {
-  return api.put(`/posts/${id}/like`)
+export function toggleLikePost(code) {
+  return api.put(`/posts/${code}/like`)
 }
 
 export function listFeed(params) {

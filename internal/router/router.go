@@ -33,7 +33,7 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	// 可个性化（Guest 正常访问，登录用户返回 liked/followed）
 	api.GET("/nodes/:id/posts", nodeCtrl.ListNodePosts)
 	api.GET("/posts", postCtrl.ListPosts)
-	api.GET("/posts/:id", postCtrl.GetPost)
+	api.GET("/posts/:code", postCtrl.GetPost)
 	api.GET("/users/:username/posts", postCtrl.ListUserPosts)
 	api.GET("/users/:username/likes", postCtrl.ListLikedPosts)
 	api.GET("/users/:username/followers", followCtrl.GetFollowers)
@@ -45,8 +45,8 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.PUT("/profile", userCtrl.UpdateProfile)
 	api.PUT("/profile/email", userCtrl.BindEmail)
 	api.POST("/posts", postCtrl.CreatePost)
-	api.DELETE("/posts/:id", postCtrl.DeletePost)
-	api.PUT("/posts/:id/like", postCtrl.ToggleLike)
+	api.DELETE("/posts/:code", postCtrl.DeletePost)
+	api.PUT("/posts/:code/like", postCtrl.ToggleLike)
 	api.GET("/feed", postCtrl.ListFeed)
 	api.PUT("/users/:username/follow", followCtrl.ToggleFollow)
 
@@ -56,5 +56,5 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.PUT("/admin/users/:id", userCtrl.UpdateUser)
 	api.DELETE("/admin/users/:id", userCtrl.DeleteUser)
 	api.POST("/admin/moderators", userCtrl.AppointModerator)
-	api.DELETE("/admin/posts/:id", postCtrl.AdminDeletePost)
+	api.DELETE("/admin/posts/:code", postCtrl.AdminDeletePost)
 }

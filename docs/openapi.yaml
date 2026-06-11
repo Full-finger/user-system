@@ -375,7 +375,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/posts/{id}:
+  /api/posts/{code}:
     get:
       tags: [帖子]
       summary: 获取帖子详情
@@ -384,7 +384,7 @@ paths:
         - BearerToken: []
         - {}
       parameters:
-        - $ref: "#/components/parameters/PostId"
+        - $ref: "#/components/parameters/PostCode"
       responses:
         "200":
           description: 成功
@@ -404,7 +404,7 @@ paths:
       tags: [帖子]
       summary: 删除帖子
       parameters:
-        - $ref: "#/components/parameters/PostId"
+        - $ref: "#/components/parameters/PostCode"
       responses:
         "200":
           description: 删除成功
@@ -417,12 +417,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/posts/{id}/like:
+  /api/posts/{code}/like:
     put:
       tags: [帖子]
       summary: 点赞/取消点赞
       parameters:
-        - $ref: "#/components/parameters/PostId"
+        - $ref: "#/components/parameters/PostCode"
       responses:
         "200":
           description: 成功
@@ -722,12 +722,12 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/admin/posts/{id}:
+  /api/admin/posts/{code}:
     delete:
       tags: [管理员]
       summary: 管理员删除帖子
       parameters:
-        - $ref: "#/components/parameters/PostId"
+        - $ref: "#/components/parameters/PostCode"
       responses:
         "200":
           description: 删除成功
@@ -790,7 +790,15 @@ components:
       required: true
       schema:
         type: integer
-      description: 帖子 ID
+      description: 帖子 ID（已弃用，保留兼容）
+
+    PostCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 帖子短码（base62 编码）
 
     NodeId:
       name: id

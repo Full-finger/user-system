@@ -68,7 +68,7 @@
           <div v-for="(p, i) in userPosts" :key="p.code"
             class="post-card card fade-up"
             :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { id: p.code } })"
+            @click="$router.push({ name: 'PostDetail', params: { code: p.code } })"
           >
             <div class="post-card__bar" :style="{ background: p.node?.color || 'var(--accent)' }"></div>
             <div class="post-card__vote">
@@ -105,7 +105,7 @@
           <div v-for="(item, i) in userLikes" :key="item.post.code"
             class="post-card card fade-up"
             :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { id: item.post.code } })"
+            @click="$router.push({ name: 'PostDetail', params: { code: item.post.code } })"
           >
             <div class="post-card__bar" :style="{ background: item.post.node?.color || 'var(--accent)' }"></div>
             <div class="post-card__content">
@@ -191,6 +191,7 @@ import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { roleLabel } from '../utils/role'
 import { getUserProfile, listUserPosts, listUserLikes, getFollowers, getFollowings, toggleFollow } from '../api'
+import { formatTime } from '../utils/format'
 import {
   PhClock, PhNote, PhHeart, PhUserPlus, PhUsers, PhThumbsUp,
   PhChatCircle, PhMagnifyingGlass, PhCircleNotch
@@ -305,14 +306,6 @@ function formatDate(dateStr) {
   return new Date(dateStr).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
-function formatTime(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr); const diff = Math.floor((Date.now() - d) / 1000)
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
-  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
-  return d.toLocaleDateString('zh-CN')
-}
 
 onMounted(fetchAll)
 watch(() => route.params.username, fetchAll)

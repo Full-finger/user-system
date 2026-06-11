@@ -131,10 +131,15 @@ func (s *PostService) GetPost(ctx context.Context, uc *auth.UserContext, code st
 		s.log.Error("查询帖子失败", zap.Error(err))
 		return nil, nil, nil, apperror.Internal("查询失败")
 	}
-	_ = s.postRepo.IncrViewCount(ctx, post.ID)
+	if err := s.postRepo.IncrViewCount(ctx, post.ID); err != nil {
+		s.log.Warn("浏览数自增失败", zap.Uint("postID", post.ID), zap.Error(err))
+	}
 	post.ViewCount++
 
-	mentions, _ := s.nodeSvc.GetMentions(ctx, post.ID)
+	mentions, err := s.nodeSvc.GetMentions(ctx, post.ID)
+	if err != nil {
+		s.log.Warn("获取帖子提及列表失败", zap.Uint("postID", post.ID), zap.Error(err))
+	}
 	likedMap := s.buildLikedMap(ctx, uc, []uint{post.ID})
 	return post, mentions, likedMap, nil
 }
@@ -294,7 +299,10 @@ func (s *PostService) buildLikedMap(ctx context.Context, uc *auth.UserContext, i
 	if uc.IsGuest() || len(ids) == 0 {
 		return nil
 	}
-	m, _ := s.likeSvc.FindLikedPostIDs(ctx, uc, ids)
+	m, err := s.likeSvc.FindLikedPostIDs(ctx, uc, ids)
+	if err != nil {
+		s.log.Warn("查询点赞状态失败", zap.Error(err))
+	}
 	return m
 }
 

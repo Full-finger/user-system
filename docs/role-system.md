@@ -387,7 +387,7 @@ api → AuthMiddleware（统一身份解析 + 限流）
   ├── GET  /nodes/:id                   // 公开
   ├── GET  /nodes/:id/posts             // Service 层按 uc 返回差异化数据
   ├── GET  /posts                       // 同上
-  ├── GET  /posts/:id                   // 同上
+  ├── GET  /posts/:code                 // 同上
   ├── GET  /users/:username/posts       // 同上
   ├── GET  /users/:username/likes       // 同上
   ├── GET  /users/:username/followers   // 同上
@@ -397,15 +397,15 @@ api → AuthMiddleware（统一身份解析 + 限流）
   ├── PUT  /profile                     // Service: RequireRole(User)
   ├── PUT  /profile/email               // Service: RequireRole(User)
   ├── POST /posts                       // Service: RequireRole(User)
-  ├── DELETE /posts/:id                 // Service: 作者 or RequireRole(Moderator) + 节点管辖
-  ├── PUT  /posts/:id/like              // Service: RequireRole(User)
+  ├── DELETE /posts/:code               // Service: 作者 or RequireRole(Moderator) + 节点管辖
+  ├── PUT  /posts/:code/like            // Service: RequireRole(User)
   ├── GET  /feed                        // Service: RequireRole(User)
   ├── PUT  /users/:username/follow      // Service: RequireRole(User)
   ├── GET  /admin/users                 // Service: RequireRole(Admin)
   ├── GET  /admin/users/:id             // Service: RequireRole(Admin)
   ├── PUT  /admin/users/:id             // Service: RequireRole(Admin) + SuperAdmin 保护
   ├── DELETE /admin/users/:id           // Service: RequireRole(Admin) + SuperAdmin 保护
-  └── DELETE /admin/posts/:id           // Service: RequireRole(Moderator) + 节点管辖
+  └── DELETE /admin/posts/:code         // Service: RequireRole(Moderator) + 节点管辖
 ```
 
 **核心变化**：路由层不再做权限区分，所有路由统一走 `AuthMiddleware`，权限判断全部在 Service 内部完成。

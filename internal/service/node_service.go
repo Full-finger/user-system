@@ -73,8 +73,8 @@ func (s *NodeService) SeedNodes(ctx context.Context) {
 	}
 }
 
-// mentionRegex 匹配 @username（字母/数字/下划线/连字符，至少2字符）。
-var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9_-]{2,50})`)
+// mentionRegex 匹配 @username（与注册规则一致：字母/数字/下划线，3-30字符）。
+var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9_]{3,30})`)
 
 // ParseAndSaveMentions 解析帖子内容中的 @username，查找对应用户并批量保存。
 func (s *NodeService) ParseAndSaveMentions(ctx context.Context, postID uint, content string) {
@@ -119,7 +119,7 @@ func extractMentions(content string) []string {
 	matches := mentionRegex.FindAllStringSubmatch(content, -1)
 	var usernames []string
 	for _, m := range matches {
-		// 过滤掉在代码块中的提及（简单处理：行首无 `>` 且不在 ``` 块中）
+		// TODO: 过滤掉代码块中的提及（当前未实现，代码块中的 @xxx 也会被匹配）
 		name := strings.ToLower(m[1])
 		usernames = append(usernames, name)
 	}

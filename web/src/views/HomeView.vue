@@ -32,7 +32,7 @@
         v-for="(post, i) in posts" :key="post.code"
         class="post-card card fade-up"
         :style="{ animationDelay: (80 + i * 40) + 'ms' }"
-        @click="$router.push({ name: 'PostDetail', params: { id: post.code } })"
+        @click="$router.push({ name: 'PostDetail', params: { code: post.code } })"
       >
         <div class="post-card__bar" :style="{ background: post.node?.color || 'var(--accent)' }"></div>
         <div class="post-card__vote">
@@ -126,6 +126,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { listPosts, listFeed, createPost, toggleLikePost, listNodes } from '../api'
+import { formatTime, formatCount } from '../utils/format'
 import {
   PhPencilSimpleLine, PhThumbsUp, PhClock, PhChatCircle, PhEye,
   PhHouse, PhCompass, PhNote, PhCircleNotch, PhX
@@ -194,22 +195,6 @@ async function handleCreatePost() {
   finally { creating.value = false }
 }
 
-function formatTime(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr); const diff = Math.floor((Date.now() - d) / 1000)
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
-  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
-  if (diff < 604800) return Math.floor(diff / 86400) + ' 天前'
-  return d.toLocaleDateString('zh-CN')
-}
-
-function formatCount(n) {
-  if (!n) return '0'
-  if (n >= 10000) return (n / 10000).toFixed(1) + 'W'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
 
 onMounted(async () => {
   await fetchPosts()

@@ -58,7 +58,7 @@
 
       <!-- Post content -->
       <div class="card post-detail__body fade-up" style="animation-delay: 80ms">
-        <div class="post-detail__content text-2" v-html="renderContent(post.content)"></div>
+        <div class="post-detail__content text-2" v-html="renderContent(post.content, post.mentions)" @click="handleContentClick"></div>
       </div>
     </template>
 
@@ -78,6 +78,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { getPost, toggleLikePost, deletePost } from '../api'
+import { renderContent } from '../utils/render'
 import {
   PhCaretRight, PhClock, PhEye, PhThumbsUp, PhTrash, PhMagnifyingGlass
 } from '@phosphor-icons/vue'
@@ -96,7 +97,7 @@ const isAuthor = computed(() => auth.user && post.value?.user?.id === auth.user.
 async function fetchPost() {
   loading.value = true
   try {
-    const res = await getPost(route.params.id)
+    const res = await getPost(route.params.code)
     post.value = res.data
     liked.value = res.data?.liked || false
   } catch (e) {
@@ -110,7 +111,7 @@ async function fetchPost() {
 async function handleLike() {
   if (!auth.isLoggedIn) return
   try {
-    const res = await toggleLikePost(route.params.id)
+    const res = await toggleLikePost(route.params.code)
     liked.value = res.data?.liked
     if (liked.value) post.value.like_count++
     else post.value.like_count = Math.max(0, post.value.like_count - 1)
@@ -120,21 +121,20 @@ async function handleLike() {
 async function handleDelete() {
   if (!confirm('确定要删除这个帖子吗？')) return
   try {
-    await deletePost(route.params.id)
+    await deletePost(route.params.code)
     toast.success('已删除')
     router.push('/')
   } catch (e) { toast.error(e.message || '删除失败') }
 }
 
-function renderContent(content) {
-  if (!content) return ''
-  // Simple rendering: escape HTML, convert @mentions to highlighted spans, preserve newlines
-  let html = content
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/@([a-zA-Z0-9_-]{2,50})/g, '<span style="color: var(--accent); font-weight: 500">@$1</span>')
-    .replace(/\n/g, '<br>')
-  return html
+function handleContentClick(e) {
+  const link = e.target.closest('.mention-link')
+  if (link) {
+    e.preventDefault()
+    router.push({ name: 'UserProfile', params: { username: link.dataset.username } })
+  }
 }
+
 
 function formatTime(dateStr) {
   if (!dateStr) return ''
@@ -204,6 +204,13 @@ onMounted(() => fetchPost())
 
 .post-detail__content {
   font-size: 15px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+}
+
+.post-detail__content :deep(.mention-link) {
+  color: var(--accent); font-weight: 500; text-decoration: none;
+}
+.post-detail__content :deep(.mention-link:hover) {
+  text-decoration: underline;
 }
 
 .post-detail__mentions {

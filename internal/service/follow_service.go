@@ -119,7 +119,10 @@ func (s *FollowService) GetUserProfile(ctx context.Context, uc *auth.UserContext
 	}
 	followed := false
 	if !uc.IsGuest() && uc.UserID != userID {
-		followed, _ = s.followRepo.Exists(ctx, uc.UserID, userID)
+		followed, err = s.followRepo.Exists(ctx, uc.UserID, userID)
+		if err != nil {
+			s.log.Warn("查询关注状态失败", zap.Uint("userID", uc.UserID), zap.Uint("targetID", userID), zap.Error(err))
+		}
 	}
 	return user, postCount, followerCount, followingCount, followed, nil
 }

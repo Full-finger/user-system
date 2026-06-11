@@ -132,16 +132,9 @@ func (ctrl *UserController) GetUser(c echo.Context) error {
 		return apperror.BadRequest("无效的ID")
 	}
 	uc := auth.GetUserContext(c)
-	user, err := ctrl.svc.GetProfile(c.Request().Context(), uc)
+	user, err := ctrl.svc.FindByID(c.Request().Context(), uc, uint(id))
 	if err != nil {
 		return err
-	}
-	// 管理员查看他人资料，用 id 查询
-	if uint(id) != uc.UserID {
-		user, err = ctrl.svc.FindByID(c.Request().Context(), uint(id))
-		if err != nil {
-			return err
-		}
 	}
 	return success(c, param.ToUserResponse(user))
 }

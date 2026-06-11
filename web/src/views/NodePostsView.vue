@@ -39,7 +39,7 @@
         v-for="(post, i) in posts" :key="post.code"
         class="post-card card fade-up"
         :style="{ animationDelay: (80 + i * 40) + 'ms' }"
-        @click="$router.push({ name: 'PostDetail', params: { id: post.code } })"
+        @click="$router.push({ name: 'PostDetail', params: { code: post.code } })"
       >
         <div class="post-card__bar" :style="{ background: node?.color || 'var(--accent)' }"></div>
         <div class="post-card__vote">
@@ -125,6 +125,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { getNode, getNodePosts, createPost, toggleLikePost } from '../api'
+import { formatTime } from '../utils/format'
 import {
   PhStack, PhNote, PhClock, PhChatCircle, PhEye, PhThumbsUp,
   PhPencilSimpleLine, PhCircleNotch, PhX
@@ -192,15 +193,6 @@ async function handleCreatePost() {
   finally { creating.value = false }
 }
 
-function formatTime(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr); const diff = Math.floor((Date.now() - d) / 1000)
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
-  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
-  if (diff < 604800) return Math.floor(diff / 86400) + ' 天前'
-  return d.toLocaleDateString('zh-CN')
-}
 
 onMounted(() => { fetchNode(); fetchPosts() })
 watch(() => route.params.id, () => { fetchNode(); fetchPosts() })

@@ -116,8 +116,11 @@ func (s *UserService) BindEmail(ctx context.Context, uc *auth.UserContext, email
 	return nil
 }
 
-// FindByID 按 ID 查找用户，无权限检查，供管理员查看他人资料使用。
-func (s *UserService) FindByID(ctx context.Context, id uint) (*model.User, error) {
+// FindByID 管理员按 ID 查找用户，需要 Admin 及以上权限。
+func (s *UserService) FindByID(ctx context.Context, uc *auth.UserContext, id uint) (*model.User, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, err
+	}
 	user, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
