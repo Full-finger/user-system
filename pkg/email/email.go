@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"strings"
 )
 
 // Sender SMTP 邮件发送器，实现 service.Mailer 接口。
@@ -31,13 +32,20 @@ func NewSender(host string, port int, username, password, from string, tls, auth
 	}
 }
 
+// sanitizeHeader 移除字符串中的 \r 和 \n，防止邮件头注入。
+func sanitizeHeader(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	return s
+}
+
 // Send 发送纯文本邮件。
 func (s *Sender) Send(to, subject, body string) error {
 	addr := net.JoinHostPort(s.host, fmt.Sprintf("%d", s.port))
 
-	msg := "From: " + s.from + "\r\n" +
-		"To: " + to + "\r\n" +
-		"Subject: " + subject + "\r\n" +
+	msg := "From: " + sanitizeHeader(s.from) + "\r\n" +
+		"To: " + sanitizeHeader(to) + "\r\n" +
+		"Subject: " + sanitizeHeader(subject) + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" +
 		body
