@@ -21,19 +21,20 @@ func setupUserTest(t *testing.T) *UserService {
 	if err != nil {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
-	db.AutoMigrate(&model.User{})
+	db.AutoMigrate(&model.User{}, &model.NodeModerator{})
 	repo := repository.NewUserRepository(db)
+	nodeModRepo := repository.NewNodeModeratorRepository(db)
 	cfg := &config.JWTConfig{
 		Secret: "test-secret-key-16chars!",
 		Expire: time.Hour,
 	}
 	log := zap.NewNop()
-	return NewUserService(repo, cfg, log)
+	return NewUserService(repo, nodeModRepo, cfg, log)
 }
 
 func superAdminUC() *auth.UserContext {
 	return &auth.UserContext{
-		UserID:   1,
+		UserID:   99,
 		Username: "superadmin",
 		Role:     auth.RoleSuperAdmin,
 		DeviceID: "test-device",
@@ -167,13 +168,20 @@ func TestUserService_UpdateUser(t *testing.T) {
 		}
 	})
 
-	t.Run("update role to moderator", func(t *testing.T) {
-		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Role: "moderator"})
+	t.Run("update role to moderator is blocked", func(t *testing.T) {
+		_, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Role: "moderator"})
+		if err == nil {
+			t.Fatal("expected error when setting moderator via UpdateUser")
+		}
+	})
+
+	t.Run("update role to admin by super_admin", func(t *testing.T) {
+		updated, err := svc.UpdateUser(ctx, adminUC, user.ID, UpdateInput{Role: "admin"})
 		if err != nil {
 			t.Fatalf("expected no error, got %v", err)
 		}
-		if updated.Role != int(auth.RoleModerator) {
-			t.Errorf("expected role %d, got %d", int(auth.RoleModerator), updated.Role)
+		if updated.Role != int(auth.RoleAdmin) {
+			t.Errorf("expected role %d, got %d", int(auth.RoleAdmin), updated.Role)
 		}
 	})
 

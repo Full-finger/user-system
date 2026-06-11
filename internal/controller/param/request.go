@@ -20,7 +20,13 @@ type LoginRequest struct {
 type UpdateRequest struct {
 	Password string `json:"password" validate:"omitempty,password"`
 	Nickname string `json:"nickname" validate:"omitempty,nickname"`
-	Role     string `json:"role" validate:"omitempty,oneof=admin user"`
+	Role     string `json:"role" validate:"omitempty,oneof=user verified_user admin"`
+}
+
+// AppointModeratorRequest 任命版主请求。
+type AppointModeratorRequest struct {
+	UserID  uint   `json:"user_id" validate:"required"`
+	NodeIDs []uint `json:"node_ids" validate:"required,min=1"`
 }
 
 // SendCodeRequest 发送验证码请求。

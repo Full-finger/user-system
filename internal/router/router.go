@@ -55,5 +55,6 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.GET("/admin/users/:id", userCtrl.GetUser)
 	api.PUT("/admin/users/:id", userCtrl.UpdateUser)
 	api.DELETE("/admin/users/:id", userCtrl.DeleteUser)
+	api.POST("/admin/moderators", userCtrl.AppointModerator)
 	api.DELETE("/admin/posts/:id", postCtrl.AdminDeletePost)
 }

@@ -19,13 +19,14 @@ import (
 
 // UserService 用户业务服务。
 type UserService struct {
-	repo repository.UserRepository
-	cfg  *config.JWTConfig
-	log  *zap.Logger
+	repo        repository.UserRepository
+	nodeModRepo repository.NodeModeratorRepository
+	cfg         *config.JWTConfig
+	log         *zap.Logger
 }
 
-func NewUserService(repo repository.UserRepository, cfg *config.JWTConfig, log *zap.Logger) *UserService {
-	return &UserService{repo: repo, cfg: cfg, log: log}
+func NewUserService(repo repository.UserRepository, nodeModRepo repository.NodeModeratorRepository, cfg *config.JWTConfig, log *zap.Logger) *UserService {
+	return &UserService{repo: repo, nodeModRepo: nodeModRepo, cfg: cfg, log: log}
 }
 
 func (s *UserService) CheckUsername(ctx context.Context, username string) error {
@@ -182,11 +183,68 @@ func (s *UserService) UpdateUser(ctx context.Context, uc *auth.UserContext, id u
 		s.log.Error("查询用户失败", zap.Error(err))
 		return nil, apperror.Internal("查询失败")
 	}
+	// 不允许修改自身角色
+	if id == uc.UserID && in.Role != "" {
+		return nil, apperror.BadRequest("不能修改自身角色")
+	}
+	// 不允许将任何人设为 super_admin
+	if in.Role != "" && auth.ParseRole(in.Role) == auth.RoleSuperAdmin {
+		return nil, apperror.BadRequest("不能设置为超级管理员")
+	}
+	// 不允许通过 UpdateUser 设置 moderator，需使用 AppointModerator 接口
+	if in.Role != "" && auth.ParseRole(in.Role) == auth.RoleModerator {
+		return nil, apperror.BadRequest("不能通过此接口设置版主，请使用任命版主接口")
+	}
+	// admin 不能设 admin，只有 super_admin 能
+	if in.Role != "" && auth.ParseRole(in.Role) == auth.RoleAdmin && uc.Role != auth.RoleSuperAdmin {
+		return nil, apperror.Forbidden("无权将用户设为管理员")
+	}
 	// SuperAdmin 不可被 Admin 修改
 	if auth.Role(target.Role) == auth.RoleSuperAdmin && uc.Role != auth.RoleSuperAdmin {
 		return nil, apperror.Forbidden("无权修改超级管理员")
 	}
+	// 版主被降级时，清理节点绑定
+	if in.Role != "" && auth.Role(target.Role) == auth.RoleModerator && auth.ParseRole(in.Role) != auth.RoleModerator {
+		if err := s.nodeModRepo.DeleteByUserID(ctx, id); err != nil {
+			s.log.Error("清理版主节点绑定失败", zap.Error(err))
+		}
+	}
 	return s.updateUser(ctx, target, in)
+}
+
+// AppointModerator 任命版主：将 user/verified_user 升为 moderator 并绑定节点。
+func (s *UserService) AppointModerator(ctx context.Context, uc *auth.UserContext, userID uint, nodeIDs []uint) (*model.User, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, err
+	}
+	target, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("用户不存在")
+		}
+		s.log.Error("查询用户失败", zap.Error(err))
+		return nil, apperror.Internal("查询失败")
+	}
+	targetRole := auth.Role(target.Role)
+	if targetRole != auth.RoleUser && targetRole != auth.RoleVerifiedUser {
+		return nil, apperror.BadRequest("只能任命普通用户或认证用户为版主")
+	}
+	// 设置角色为 moderator
+	ri := int(auth.RoleModerator)
+	if err := s.repo.Update(ctx, target.ID, repository.UserUpdate{Role: &ri}); err != nil {
+		s.log.Error("任命版主失败", zap.Error(err))
+		return nil, apperror.Internal("任命版主失败")
+	}
+	// 创建节点绑定
+	mods := make([]repository.NodeModeratorCreate, len(nodeIDs))
+	for i, nid := range nodeIDs {
+		mods[i] = repository.NodeModeratorCreate{NodeID: nid, UserID: target.ID}
+	}
+	if err := s.nodeModRepo.CreateBatch(ctx, mods); err != nil {
+		s.log.Error("创建版主节点绑定失败", zap.Error(err))
+		return nil, apperror.Internal("任命版主失败")
+	}
+	return s.repo.FindByID(ctx, target.ID)
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, uc *auth.UserContext, id uint) error {
@@ -226,8 +284,8 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 	}
 	if in.Role != "" {
 		r := auth.ParseRole(in.Role)
-		if r != auth.RoleUser && r != auth.RoleModerator {
-			return nil, apperror.BadRequest("只能设置为 user 或 moderator")
+		if r == auth.RoleSuperAdmin || r == auth.RoleGuest {
+			return nil, apperror.BadRequest("无效的角色值")
 		}
 		ri := int(r)
 		upd.Role = &ri

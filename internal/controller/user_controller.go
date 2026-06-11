@@ -205,6 +205,19 @@ func (ctrl *UserController) CodeLogin(c echo.Context) error {
 	return success(c, param.LoginResponse{Token: token})
 }
 
+func (ctrl *UserController) AppointModerator(c echo.Context) error {
+	var req param.AppointModeratorRequest
+	if err := param.BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	uc := auth.GetUserContext(c)
+	user, err := ctrl.svc.AppointModerator(c.Request().Context(), uc, req.UserID, req.NodeIDs)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToUserResponse(user))
+}
+
 func (ctrl *UserController) BindEmail(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	var req param.BindEmailRequest

@@ -12,3 +12,8 @@ export function roleLabel(role) {
 
 export const ADMIN_ROLES = ['admin', 'super_admin']
 export const MANAGE_ROLES = ['moderator', ...ADMIN_ROLES]
+
+export const ASSIGNABLE_ROLES = {
+  admin: ['user', 'verified_user'],
+  super_admin: ['user', 'verified_user', 'admin'],
+}

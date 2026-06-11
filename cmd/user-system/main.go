@@ -77,7 +77,7 @@ func main() {
 	nodeModRepo := repository.NewNodeModeratorRepository(db)
 	mentionRepo := repository.NewMentionRepository(db)
 
-	userSvc := service.NewUserService(userRepo, &cfg.JWT, log)
+	userSvc := service.NewUserService(userRepo, nodeModRepo, &cfg.JWT, log)
 	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer, log)
 	nodeSvc := service.NewNodeService(nodeRepo, userRepo, mentionRepo, log)
 	nodeSvc.SeedNodes(context.Background())
