@@ -127,11 +127,11 @@ func ToPostListResponse(posts []model.Post, total int64, page, pageSize int, lik
 }
 
 // ToLikedPostListResponse 将点赞列表转为响应。
-// likedMap 可为 nil，但点赞列表中的帖子 liked 始终为 true。
+// likedMap 可为 nil（游客）；Liked 表示当前查看者是否也点赞了该帖子。
 func ToLikedPostListResponse(likes []model.Like, total int64, page, pageSize int, likedMap map[uint]bool) LikedPostListResponse {
 	list := make([]LikedPostResponse, 0, len(likes))
 	for i := range likes {
-		// 点赞列表中的帖子，当前用户一定已点赞（除非是查看他人的点赞列表且 likedMap 为空）
+		// Liked 表示当前查看者对该帖子是否也点了赞（非目标用户的点赞状态）
 		liked := likedMap != nil && likedMap[likes[i].PostID]
 		list = append(list, LikedPostResponse{
 			Post:  toPostListEntry(&likes[i].Post, likedMap),
