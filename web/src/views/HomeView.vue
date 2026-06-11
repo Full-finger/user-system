@@ -1,384 +1,218 @@
 <template>
   <div class="home">
-    <!-- 发帖按钮区域 -->
     <div class="home__header fade-up">
       <h1 class="font-display home__title">发现</h1>
-      <button class="btn btn--primary">
+      <button class="btn btn--primary" @click="showCreateModal = true" v-if="auth.isLoggedIn">
         <PhPencilSimpleLine :size="16" />
         发帖
       </button>
     </div>
 
-    <!-- 版块标签过滤 -->
-    <div class="home__tabs fade-up" style="animation-delay: 40ms">
+    <div class="tab-bar fade-up" style="animation-delay: 40ms">
       <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="home__tab"
-        :class="{ 'home__tab--active': activeTab === tab.key }"
-        @click="activeTab = tab.key"
+        v-for="tab in tabs" :key="tab.key"
+        class="tab-btn" :class="{ 'tab-btn--active': activeTab === tab.key }"
+        @click="switchTab(tab.key)"
       >
         <component :is="tab.icon" :size="14" />
         {{ tab.label }}
       </button>
     </div>
 
-    <!-- 开发中提示 -->
-    <div class="home__dev-hint fade-up" style="animation-delay: 80ms">
-      <div class="card home__dev-card">
-        <div class="home__dev-icon">
-          <PhWrench :size="28" weight="bold" />
-        </div>
-        <h2 class="font-display" style="font-size: 18px; margin-bottom: 6px">帖子功能开发中</h2>
-        <p class="text-3" style="font-size: 14px; line-height: 1.6">
-          帖子、话题、投票、评论等社区核心功能正在紧锣密鼓地开发中。<br />
-          目前可以使用 <router-link to="/profile">个人中心</router-link> 和
-          <router-link to="/admin" v-if="auth.isAdmin">管理后台</router-link>
-          <template v-else>登录注册</template>
-          功能。
-        </p>
-      </div>
+    <!-- Loading -->
+    <div v-if="loading" style="padding-top: 8px">
+      <div class="skeleton" style="height: 80px; margin-bottom: 8px"></div>
+      <div class="skeleton" style="height: 80px; margin-bottom: 8px"></div>
+      <div class="skeleton" style="height: 80px"></div>
     </div>
 
-    <!-- 示例帖子卡片（静态演示设计系统） -->
-    <div class="home__posts">
+    <!-- Posts -->
+    <div v-else-if="posts.length > 0">
       <div
-        v-for="(post, i) in samplePosts"
-        :key="i"
+        v-for="(post, i) in posts" :key="post.code"
         class="post-card card fade-up"
-        :style="{ animationDelay: (120 + i * 40) + 'ms' }"
+        :style="{ animationDelay: (80 + i * 40) + 'ms' }"
+        @click="$router.push({ name: 'PostDetail', params: { code: post.code } })"
       >
-        <div class="post-card__bar" :style="{ background: post.color }"></div>
-
+        <div class="post-card__bar" :style="{ background: post.node?.color || 'var(--accent)' }"></div>
         <div class="post-card__vote">
-          <button class="post-card__vote-btn">
-            <PhThumbsUp :size="16" />
+          <button class="post-card__vote-btn" @click.stop="handleLike(post)">
+            <PhThumbsUp :size="16" :weight="likedPosts.has(post.code) ? 'fill' : 'regular'" />
           </button>
-          <span class="font-display" style="font-size: 14px; font-weight: 600">{{ post.votes }}</span>
-          <button class="post-card__vote-btn">
-            <PhThumbsDown :size="16" />
-          </button>
+          <span class="font-display" style="font-size: 14px; font-weight: 600">{{ post.like_count }}</span>
         </div>
-
         <div class="post-card__content">
           <div class="post-card__top">
-            <h3 class="post-card__title font-display">{{ post.title }}</h3>
-            <span class="pill" :style="{ background: post.color + '18', color: post.color }">
-              {{ post.category }}
+            <h3 class="post-card__title">{{ post.title }}</h3>
+            <span class="pill" :style="{ background: (post.node?.color || '#c47a99') + '18', color: post.node?.color || '#c47a99' }">
+              {{ post.node?.name || '未知' }}
             </span>
           </div>
-          <p class="post-card__desc text-3">{{ post.desc }}</p>
+          <p class="post-card__desc text-3">{{ post.content }}</p>
           <div class="post-card__meta text-4">
             <span class="post-card__author">
-              <span class="post-card__online-dot" :style="{ background: post.onlineColor }"></span>
-              {{ post.author }}
+              <span class="post-card__online-dot" style="background: var(--text-4)"></span>
+              {{ post.user?.nickname || post.user?.username || '匿名' }}
             </span>
-            <span class="pill pill--accent" style="font-size: 11px">{{ post.level }}</span>
-            <span><PhClock :size="12" style="vertical-align: -1px" /> {{ post.time }}</span>
-            <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ post.replies }}</span>
-            <span><PhEye :size="12" style="vertical-align: -1px" /> {{ post.views }}</span>
-          </div>
-          <div class="post-card__tags">
-            <span v-for="tag in post.tags" :key="tag" class="pill pill--lavender">{{ tag }}</span>
+            <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(post.created_at) }}</span>
+            <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ post.reply_count }}</span>
+            <span><PhEye :size="12" style="vertical-align: -1px" /> {{ formatCount(post.view_count) }}</span>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Empty -->
+    <div v-else class="empty-state card fade-up" style="animation-delay: 80ms">
+      <div class="empty-state__icon"><PhNote :size="32" weight="bold" /></div>
+      <h2 class="font-display" style="font-size: 18px; margin-bottom: 6px">还没有帖子</h2>
+      <p class="text-3" style="font-size: 14px">成为第一个发帖的人吧！</p>
+      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" style="margin-top: 12px" @click="showCreateModal = true">
+        <PhPencilSimpleLine :size="14" /> 发帖
+      </button>
+    </div>
+
+    <!-- Load more -->
+    <div v-if="posts.length > 0" style="padding: 12px 0; text-align: center">
+      <button v-if="hasMore" class="btn btn--outline btn--sm" @click="loadMore" :disabled="loadingMore">
+        <PhCircleNotch v-if="loadingMore" :size="14" class="spin" />
+        <span v-else>加载更多</span>
+      </button>
+      <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
+    </div>
+
+    <!-- Create Modal -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
+          <div class="modal-panel card">
+            <div class="modal-panel__header">
+              <h2 class="font-display" style="font-size: 18px">发布新帖</h2>
+              <button class="modal-panel__close" @click="showCreateModal = false"><PhX :size="18" /></button>
+            </div>
+            <div class="modal-panel__body">
+              <div class="auth-form__group">
+                <label class="auth-form__label">选择节点</label>
+                <select v-model="newPost.node_id" class="input" style="height: 38px">
+                  <option :value="null" disabled>请选择节点</option>
+                  <option v-for="node in allNodes" :key="node.id" :value="node.id">{{ node.name }}</option>
+                </select>
+              </div>
+              <div class="auth-form__group">
+                <label class="auth-form__label">标题</label>
+                <input v-model="newPost.title" class="input" placeholder="输入帖子标题..." style="border: none; background: transparent" />
+              </div>
+              <div class="auth-form__group" style="min-height: 120px">
+                <label class="auth-form__label">内容（支持 @username 提及他人）</label>
+                <textarea v-model="newPost.content" class="input" placeholder="写下你的想法..." style="border: none; background: transparent; resize: vertical; min-height: 80px"></textarea>
+              </div>
+            </div>
+            <div class="modal-panel__footer">
+              <button class="btn btn--outline btn--sm" @click="showCreateModal = false">取消</button>
+              <button class="btn btn--primary btn--sm" @click="handleCreatePost" :disabled="!newPost.node_id || !newPost.title || !newPost.content || creating">
+                <PhCircleNotch v-if="creating" :size="14" class="spin" />
+                <span v-else>发布</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
+import { listPosts, listFeed, createPost, toggleLikePost, listNodes } from '../api'
+import { formatTime, formatCount } from '../utils/format'
 import {
-  PhPencilSimpleLine, PhWrench, PhThumbsUp, PhThumbsDown,
-  PhClock, PhChatCircle, PhEye,
-  PhHouse, PhCompass, PhStack, PhFireSimple, PhStar
+  PhPencilSimpleLine, PhThumbsUp, PhClock, PhChatCircle, PhEye,
+  PhHouse, PhCompass, PhNote, PhCircleNotch, PhX
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
-
+const toast = useToast()
 const activeTab = ref('all')
 const tabs = [
   { key: 'all', label: '全部', icon: PhHouse },
-  { key: 'tech', label: '技术', icon: PhStack },
-  { key: 'hot', label: '热门', icon: PhFireSimple },
-  { key: 'essence', label: '精华', icon: PhStar },
-  { key: 'explore', label: '探索', icon: PhCompass },
+  { key: 'feed', label: '关注', icon: PhCompass },
 ]
 
-const samplePosts = [
-  {
-    title: 'Building a Custom ORM in Rust',
-    desc: 'An in-depth guide to building type-safe database abstractions in Rust...',
-    category: '技术讨论',
-    color: '#9b8ec4',
-    votes: 24,
-    author: 'rustacean',
-    level: 'Lv.3',
-    time: '2h ago',
-    replies: 24,
-    views: '1.2K',
-    tags: ['Rust', 'Database', 'Tutorial'],
-    onlineColor: '#6db89a',
-  },
-  {
-    title: 'Vue 3 Composition API 最佳实践总结',
-    desc: '分享在实际项目中使用 Composition API 的一些心得和踩坑记录...',
-    category: '项目展示',
-    color: '#6db89a',
-    votes: 18,
-    author: 'vuefan',
-    level: 'Lv.2',
-    time: '4h ago',
-    replies: 12,
-    views: '860',
-    tags: ['Vue', 'Frontend'],
-    onlineColor: '#a89cb5',
-  },
-  {
-    title: '如何设计一个可扩展的微服务架构？',
-    desc: '讨论在业务快速增长阶段，如何合理拆分服务边界...',
-    category: '新手求助',
-    color: '#7ba4d4',
-    votes: 31,
-    author: 'architect_wang',
-    level: 'Lv.4',
-    time: '6h ago',
-    replies: 45,
-    views: '2.3K',
-    tags: ['Microservice', 'Architecture'],
-    onlineColor: '#6db89a',
-  },
-]
+const posts = ref([])
+const loading = ref(true)
+const loadingMore = ref(false)
+const page = ref(1)
+const hasMore = ref(true)
+const likedPosts = ref(new Set())
+const allNodes = ref([])
+
+const showCreateModal = ref(false)
+const creating = ref(false)
+const newPost = reactive({ node_id: null, title: '', content: '' })
+
+async function fetchPosts(reset = true) {
+  if (reset) { page.value = 1; posts.value = []; loading.value = true; hasMore.value = true }
+  try {
+    const params = { page: page.value, page_size: 20 }
+    const res = activeTab.value === 'feed' ? await listFeed(params) : await listPosts(params)
+    const list = res.data?.list || []
+    if (reset) {
+      posts.value = list
+      likedPosts.value = new Set(list.filter(p => p.liked).map(p => p.code))
+    } else {
+      posts.value.push(...list)
+      list.forEach(p => { if (p.liked) likedPosts.value.add(p.code) })
+    }
+    hasMore.value = posts.value.length < (res.data?.total || 0)
+  } catch (e) { toast.error(e.message) }
+  finally { loading.value = false; loadingMore.value = false }
+}
+
+function switchTab(key) { activeTab.value = key; fetchPosts(true) }
+function loadMore() { page.value++; loadingMore.value = true; fetchPosts(false) }
+
+async function handleLike(post) {
+  if (!auth.isLoggedIn) return
+  try {
+    const res = await toggleLikePost(post.code)
+    if (res.data?.liked) { likedPosts.value.add(post.code); post.like_count++ }
+    else { likedPosts.value.delete(post.code); post.like_count = Math.max(0, post.like_count - 1) }
+  } catch (e) { toast.error(e.message) }
+}
+
+async function handleCreatePost() {
+  if (!newPost.node_id || !newPost.title || !newPost.content) return
+  creating.value = true
+  try {
+    await createPost({ node_id: newPost.node_id, title: newPost.title, content: newPost.content })
+    showCreateModal.value = false
+    newPost.node_id = null; newPost.title = ''; newPost.content = ''
+    fetchPosts(true)
+    toast.success('发布成功')
+  } catch (e) { toast.error(e.message || '发帖失败') }
+  finally { creating.value = false }
+}
+
+
+onMounted(async () => {
+  await fetchPosts()
+  try { const res = await listNodes(); allNodes.value = res.data?.nodes || [] } catch (e) { toast.error(e.message) }
+})
 </script>
 
 <style scoped>
 .home__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
 }
+.home__title { font-size: 26px; }
 
-.home__title {
-  font-size: 26px;
-}
-
-.home__tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-}
-
-.home__tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: none;
-  background: none;
-  color: var(--text-3);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-  transition: color var(--duration-medium-1) var(--ease-standard);
-}
-
-.home__tab::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: transparent;
-  transition: background var(--duration-medium-1) var(--ease-standard);
-  pointer-events: none;
-}
-
-.home__tab:hover {
-  color: var(--text-1);
-}
-
-.home__tab:hover::after {
-  background: var(--state-hover);
-}
-
-.home__tab--active {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.home__tab--active::after {
-  background: var(--accent-light);
-}
-
-.home__dev-card {
-  padding: 32px;
-  text-align: center;
-  margin-bottom: 20px;
-}
-
-.home__dev-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--radius-l);
-  background: var(--accent-light);
-  color: var(--accent);
-  margin-bottom: 16px;
-}
-
-/* ---- Post Card ---- */
-.post-card {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  margin-bottom: 8px;
-  position: relative;
-  transition: box-shadow var(--duration-medium-2) var(--ease-standard);
-}
-
-.post-card:hover {
-  box-shadow: var(--shadow-2);
-}
-
-.post-card__bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-radius: var(--radius-m) 0 0 var(--radius-m);
-  transition: width var(--duration-medium-2) var(--ease-standard);
-}
-
-.post-card:hover .post-card__bar {
-  width: 3px;
-}
-
-.post-card__vote {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 0;
-  min-width: 40px;
-  color: var(--text-4);
-}
-
-.post-card__vote-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: none;
-  color: var(--text-4);
-  cursor: pointer;
-  border-radius: var(--radius-s);
-  position: relative;
-  overflow: hidden;
-  transition: color var(--duration-medium-1) var(--ease-standard);
-}
-
-.post-card__vote-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: transparent;
-  transition: background var(--duration-medium-1) var(--ease-standard);
-  pointer-events: none;
-}
-
-.post-card__vote-btn:hover {
-  color: var(--accent);
-}
-
-.post-card__vote-btn:hover::after {
-  background: var(--state-hover);
-}
-
-.post-card__content {
-  flex: 1;
-  min-width: 0;
-}
-
-.post-card__top {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.post-card__title {
-  font-size: 16px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.post-card__desc {
-  font-size: 13px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 8px;
-}
-
-.post-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.post-card__author {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-weight: 500;
-}
-
-.post-card__online-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.post-card__tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-@media (max-width: 600px) {
-  .post-card {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .post-card__vote {
-    flex-direction: row;
-    min-width: auto;
-  }
-
-  .post-card__title {
-    font-size: 15px;
-  }
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%237e7290' viewBox='0 0 256 256'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
 }
 </style>

@@ -4,9 +4,24 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DevMoe — 开发者社区</title>
+    <!-- 站点配置：部署时在同目录创建 site.config.js 即可自定义，无需重新构建 -->
+    <script>window.__SITE_CONFIG__</script>
+    <script src="/site.config.js" onerror=""></script>
+    <script>if(!window.__SITE_CONFIG__){console.warn('[site.config] 加载失败，使用默认配置');window.__SITE_CONFIG__={}}</script>
+    <script>
+      ;(function () {
+        var c = window.__SITE_CONFIG__ || {}
+        document.title =
+          (c.siteName || 'DevMoe') + ' — ' + (c.siteDescription || '开发者社区')
+        if (c.siteFavicon) {
+          var link = document.querySelector('link[rel="icon"]')
+          if (link) link.href = c.siteFavicon
+        }
+      })()
+    </script>
   </head>
   <body>
+    <script>!function(){var t=localStorage.getItem("theme");var d=t==="dark"||(!t||t==="system")&&matchMedia("(prefers-color-scheme:dark)").matches;document.documentElement.setAttribute("data-theme",d?"dark":"light")}()</script>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

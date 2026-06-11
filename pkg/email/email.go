@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/smtp"
+	"strings"
 )
 
 // Sender SMTP 邮件发送器，实现 service.Mailer 接口。
@@ -31,57 +32,67 @@ func NewSender(host string, port int, username, password, from string, tls, auth
 	}
 }
 
+// sanitizeHeader 移除字符串中的 \r 和 \n，防止邮件头注入。
+func sanitizeHeader(s string) string {
+	s = strings.ReplaceAll(s, "\r", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	return s
+}
+
 // Send 发送纯文本邮件。
 func (s *Sender) Send(to, subject, body string) error {
 	addr := net.JoinHostPort(s.host, fmt.Sprintf("%d", s.port))
 
-	msg := "From: " + s.from + "\r\n" +
-		"To: " + to + "\r\n" +
-		"Subject: " + subject + "\r\n" +
+	msg := "From: " + sanitizeHeader(s.from) + "\r\n" +
+		"To: " + sanitizeHeader(to) + "\r\n" +
+		"Subject: " + sanitizeHeader(subject) + "\r\n" +
 		"MIME-Version: 1.0\r\n" +
 		"Content-Type: text/plain; charset=UTF-8\r\n\r\n" +
 		body
 
+	var client *smtp.Client
+
 	if s.tls {
-		tlsConfig := &tls.Config{ServerName: s.host}
-		conn, err := tls.Dial("tcp", addr, tlsConfig)
+		conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: s.host})
 		if err != nil {
 			return fmt.Errorf("tls dial failed: %w", err)
 		}
-		client, err := smtp.NewClient(conn, s.host)
+		client, err = smtp.NewClient(conn, s.host)
 		if err != nil {
 			return fmt.Errorf("create smtp client failed: %w", err)
 		}
-		defer client.Close()
-
-		if s.auth {
-			smtpAuth := smtp.PlainAuth("", s.username, s.password, s.host)
-			if err = client.Auth(smtpAuth); err != nil {
-				return fmt.Errorf("smtp auth failed: %w", err)
-			}
-		}
-		if err = client.Mail(s.from); err != nil {
-			return fmt.Errorf("smtp mail from failed: %w", err)
-		}
-		if err = client.Rcpt(to); err != nil {
-			return fmt.Errorf("smtp rcpt to failed: %w", err)
-		}
-		w, err := client.Data()
+	} else {
+		conn, err := net.Dial("tcp", addr)
 		if err != nil {
-			return fmt.Errorf("smtp data failed: %w", err)
+			return fmt.Errorf("dial failed: %w", err)
 		}
-		if _, err = w.Write([]byte(msg)); err != nil {
-			return fmt.Errorf("write message failed: %w", err)
+		client, err = smtp.NewClient(conn, s.host)
+		if err != nil {
+			return fmt.Errorf("create smtp client failed: %w", err)
 		}
-		if err = w.Close(); err != nil {
-			return fmt.Errorf("close writer failed: %w", err)
-		}
-		return client.Quit()
 	}
+	defer client.Close()
 
 	if s.auth {
-		smtpAuth := smtp.PlainAuth("", s.username, s.password, s.host)
-		return smtp.SendMail(addr, smtpAuth, s.from, []string{to}, []byte(msg))
+		if err := client.Auth(smtp.PlainAuth("", s.username, s.password, s.host)); err != nil {
+			return fmt.Errorf("smtp auth failed: %w", err)
+		}
 	}
-	return smtp.SendMail(addr, nil, s.from, []string{to}, []byte(msg))
+	if err := client.Mail(s.from); err != nil {
+		return fmt.Errorf("smtp mail from failed: %w", err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("smtp rcpt to failed: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp data failed: %w", err)
+	}
+	if _, err = w.Write([]byte(msg)); err != nil {
+		return fmt.Errorf("write message failed: %w", err)
+	}
+	if err = w.Close(); err != nil {
+		return fmt.Errorf("close writer failed: %w", err)
+	}
+	return client.Quit()
 }

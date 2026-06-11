@@ -29,18 +29,35 @@ const routes = [
         component: () => import('../views/ExploreView.vue')
       },
       {
+        path: 'nodes/:id',
+        name: 'NodePosts',
+        component: () => import('../views/NodePostsView.vue')
+      },
+      {
+        path: 'posts/:code',
+        name: 'PostDetail',
+        component: () => import('../views/PostView.vue')
+      },
+      {
+        path: 'users/:username',
+        name: 'UserProfile',
+        component: () => import('../views/UserProfileView.vue')
+      },
+      {
         path: 'profile',
         name: 'Profile',
         component: () => import('../views/ProfileView.vue'),
         meta: { auth: true }
       },
       {
+        // TODO: 预留功能 — 后端 API 尚未实现，前端仅占位展示
         path: 'notifications',
         name: 'Notifications',
         component: () => import('../views/NotificationsView.vue'),
         meta: { auth: true }
       },
       {
+        // TODO: 预留功能 — 后端 API 尚未实现，前端仅占位展示
         path: 'messages',
         name: 'Messages',
         component: () => import('../views/MessagesView.vue'),

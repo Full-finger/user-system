@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { getProfile, login as apiLogin, loginByCode as apiLoginByCode, register as apiRegister } from '../api'
+import { ADMIN_ROLES, MANAGE_ROLES } from '../utils/role'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || '')
   const user = ref(null)
 
   const isLoggedIn = computed(() => !!token.value)
-  const isAdmin = computed(() => user.value?.role === 'admin')
+  const isAdmin = computed(() => ADMIN_ROLES.includes(user.value?.role))
+  const canManagePosts = computed(() => MANAGE_ROLES.includes(user.value?.role))
 
   async function setTokenAndFetch(res) {
     token.value = res.data.token
@@ -49,5 +51,5 @@ export const useAuthStore = defineStore('auth', () => {
     fetchProfile()
   }
 
-  return { token, user, isLoggedIn, isAdmin, login, loginByCode, register, fetchProfile, logout }
+  return { token, user, isLoggedIn, isAdmin, canManagePosts, login, loginByCode, register, fetchProfile, logout }
 })

@@ -54,7 +54,9 @@ func (s *CaptchaService) SendCode(ctx context.Context, email string) error {
 	subject := "验证码"
 	body := fmt.Sprintf("您的验证码是：%s，有效期 %s。", code, s.cfg.Expire)
 	if err := s.mail.Send(email, subject, body); err != nil {
-		s.rdb.Del(ctx, codeKey, rateKey)
+		if err := s.rdb.Del(ctx, codeKey, rateKey).Err(); err != nil {
+			s.log.Warn("清理验证码 key 失败", zap.Error(err))
+		}
 		s.log.Error("发送邮件失败", zap.Error(err))
 		return apperror.Internal("发送邮件失败")
 	}
@@ -77,7 +79,9 @@ func (s *CaptchaService) VerifyCode(ctx context.Context, email, code string) err
 		if s.cfg.MaxAttempts > 0 {
 			attemptsKey := fmt.Sprintf("captcha:attempts:%s", email)
 			if err := s.incAttempts(ctx, attemptsKey); err != nil {
-				s.rdb.Del(ctx, codeKey, attemptsKey)
+				if err := s.rdb.Del(ctx, codeKey, attemptsKey).Err(); err != nil {
+					s.log.Warn("清理验证码 key 失败", zap.Error(err))
+				}
 				return apperror.BadRequest("验证码已失效，请重新获取")
 			}
 		}
@@ -88,7 +92,9 @@ func (s *CaptchaService) VerifyCode(ctx context.Context, email, code string) err
 	if s.cfg.MaxAttempts > 0 {
 		delKeys = append(delKeys, fmt.Sprintf("captcha:attempts:%s", email))
 	}
-	s.rdb.Del(ctx, delKeys...)
+	if err := s.rdb.Del(ctx, delKeys...).Err(); err != nil {
+		s.log.Warn("清理验证码 key 失败", zap.Error(err))
+	}
 	return nil
 }
 
@@ -98,7 +104,9 @@ func (s *CaptchaService) incAttempts(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	s.rdb.Expire(ctx, key, s.cfg.Expire)
+	if err := s.rdb.Expire(ctx, key, s.cfg.Expire).Err(); err != nil {
+		s.log.Warn("设置 attempts TTL 失败", zap.Error(err))
+	}
 	if attempts > int64(s.cfg.MaxAttempts) {
 		return fmt.Errorf("exceeded")
 	}

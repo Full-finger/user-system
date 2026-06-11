@@ -3,6 +3,35 @@
     <h1 class="font-display" style="font-size: 26px; margin-bottom: 20px">设置</h1>
 
     <template v-if="auth.user">
+      <!-- 修改昵称 -->
+      <div class="card settings__section">
+        <h2 class="font-display settings__section-title">
+          <PhUser :size="16" />
+          修改昵称
+        </h2>
+        <form @submit.prevent="handleNicknameChange" class="settings__form">
+          <div class="settings__field">
+            <label class="settings__label">昵称</label>
+            <input v-model="nickForm.nickname" type="text" class="input" placeholder="1-50 字符" />
+          </div>
+          <div v-if="nickError" class="settings__error">
+            <PhXCircle :size="14" />
+            {{ nickError }}
+          </div>
+          <div v-if="nickSuccess" class="settings__success">
+            <PhCheckCircle :size="14" />
+            {{ nickSuccess }}
+          </div>
+          <button type="submit" class="btn btn--primary" :disabled="nickLoading">
+            <PhCircleNotch v-if="nickLoading" :size="16" class="spin" />
+            {{ nickLoading ? '保存中...' : '保存昵称' }}
+          </button>
+        </form>
+        <p class="text-4" style="font-size: 12px; margin-top: 12px">
+          用户名（{{ auth.user?.username }}）不可更改
+        </p>
+      </div>
+
       <!-- 修改密码 -->
       <div class="card settings__section">
         <h2 class="font-display settings__section-title">
@@ -12,7 +41,7 @@
         <form @submit.prevent="handlePasswordChange" class="settings__form">
           <div class="settings__field">
             <label class="settings__label">新密码</label>
-            <input v-model="pwForm.password" type="password" class="input" placeholder="至少 6 位" />
+            <input v-model="pwForm.password" type="password" class="input" placeholder="至少 8 位，须包含字母和数字" />
           </div>
           <div class="settings__field">
             <label class="settings__label">确认密码</label>
@@ -82,14 +111,16 @@
           <PhPalette :size="16" />
           外观
         </h2>
-        <div class="settings__theme-row">
-          <span style="font-size: 14px">暗色模式</span>
+        <div class="settings__theme-group">
           <button
-            class="settings__toggle"
-            :class="{ 'settings__toggle--on': isDark }"
-            @click="toggleTheme"
+            v-for="opt in themeOptions"
+            :key="opt.value"
+            class="settings__theme-btn"
+            :class="{ 'settings__theme-btn--active': theme.mode === opt.value }"
+            @click="theme.setTheme(opt.value)"
           >
-            <span class="settings__toggle-knob"></span>
+            <component :is="opt.icon" :size="16" />
+            {{ opt.label }}
           </button>
         </div>
       </div>
@@ -113,15 +144,40 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useThemeStore } from '../stores/theme'
 import { updateProfile, bindEmail, sendCode } from '../api'
 import {
-  PhKey, PhEnvelopeSimple, PhPalette, PhWarning, PhTrash,
-  PhXCircle, PhCheckCircle, PhCircleNotch
+  PhKey, PhUser, PhEnvelopeSimple, PhPalette, PhWarning, PhTrash,
+  PhXCircle, PhCheckCircle, PhCircleNotch, PhSun, PhMoon, PhDesktop
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
+const theme = useThemeStore()
 
-const isDark = ref(document.documentElement.getAttribute('data-theme') === 'dark')
+const themeOptions = [
+  { value: 'light', label: '亮色', icon: PhSun },
+  { value: 'dark', label: '暗色', icon: PhMoon },
+  { value: 'system', label: '跟随系统', icon: PhDesktop },
+]
+
+// ---- Nickname ----
+const nickForm = reactive({ nickname: '' })
+const nickLoading = ref(false)
+const nickError = ref('')
+const nickSuccess = ref('')
+
+async function handleNicknameChange() {
+  nickError.value = ''
+  nickSuccess.value = ''
+  if (!nickForm.nickname || nickForm.nickname.length > 50) { nickError.value = '昵称长度 1-50 字符'; return }
+  nickLoading.value = true
+  try {
+    await updateProfile({ nickname: nickForm.nickname })
+    nickSuccess.value = '昵称修改成功'
+    auth.fetchProfile()
+  } catch (e) { nickError.value = e.message }
+  finally { nickLoading.value = false }
+}
 
 // ---- Password ----
 const pwForm = reactive({ password: '', confirm: '' })
@@ -132,7 +188,7 @@ const pwSuccess = ref('')
 async function handlePasswordChange() {
   pwError.value = ''
   pwSuccess.value = ''
-  if (pwForm.password.length < 6) { pwError.value = '密码至少 6 位'; return }
+  if (pwForm.password.length < 8 || !/[a-zA-Z]/.test(pwForm.password) || !/\d/.test(pwForm.password)) { pwError.value = '密码至少 8 位，须包含字母和数字'; return }
   if (pwForm.password !== pwForm.confirm) { pwError.value = '两次密码不一致'; return }
   pwLoading.value = true
   try {
@@ -179,11 +235,6 @@ async function handleBindEmail() {
   finally { emailLoading.value = false }
 }
 
-// ---- Theme ----
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
-}
 </script>
 
 <style scoped>
@@ -269,40 +320,37 @@ function toggleTheme() {
   color: var(--mint);
 }
 
-.settings__theme-row {
+.settings__theme-group {
+  display: flex;
+  gap: 8px;
+}
+
+.settings__theme-btn {
+  flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.settings__toggle {
-  width: 44px;
-  height: 24px;
-  border-radius: var(--radius-full);
-  border: none;
-  background: var(--text-4);
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 13px;
   cursor: pointer;
-  position: relative;
-  transition: background var(--duration-medium-1) var(--ease-standard);
+  transition: all var(--duration-medium-1) var(--ease-standard);
 }
 
-.settings__toggle--on {
-  background: var(--accent);
+.settings__theme-btn:hover {
+  border-color: var(--border-hover);
+  color: var(--text-1);
 }
 
-.settings__toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform var(--duration-medium-3) var(--ease-emphasized);
-}
-
-.settings__toggle--on .settings__toggle-knob {
-  transform: translateX(20px);
+.settings__theme-btn--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 @keyframes spin {

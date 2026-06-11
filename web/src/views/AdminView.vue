@@ -5,11 +5,7 @@
 
     <!-- 顶部操作栏 -->
     <div class="admin__toolbar card">
-      <div class="admin__toolbar-left">
-        <span class="text-3" style="font-size: 13px">
-          共 {{ total }} 个用户
-        </span>
-      </div>
+      <span class="text-3" style="font-size: 13px">共 {{ total }} 个用户</span>
       <button class="btn btn--outline btn--sm" @click="fetchUsers">
         <PhArrowClockwise :size="14" />
         刷新
@@ -24,54 +20,56 @@
       </div>
 
       <div v-else-if="error" style="padding: 40px; text-align: center">
-        <PhXCircle :size="24" style="color: #c47878" />
-        <p style="margin-top: 8px; font-size: 13px; color: #c47878">{{ error }}</p>
+        <PhXCircle :size="24" style="color: var(--color-danger)" />
+        <p style="margin-top: 8px; font-size: 13px; color: var(--color-danger)">{{ error }}</p>
         <button class="btn btn--outline btn--sm" style="margin-top: 12px" @click="fetchUsers">重试</button>
+      </div>
+
+      <div v-else-if="users.length === 0" class="empty-state">
+        <div class="empty-state__icon">
+          <PhUsers :size="24" />
+        </div>
+        <p class="text-3" style="font-size: 14px">暂无用户</p>
       </div>
 
       <table v-else class="admin__table">
         <thead>
           <tr>
-            <th>ID</th>
-            <th>用户名</th>
-            <th>邮箱</th>
+            <th>用户</th>
             <th>角色</th>
-            <th>注册时间</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="user in users" :key="user.id">
-            <td class="text-3 font-mono" style="font-size: 12px">{{ user.id }}</td>
             <td>
-              <div style="display: flex; align-items: center; gap: 8px">
-                <div class="avatar avatar--sm" style="width: 28px; height: 28px; font-size: 11px">
-                  {{ user.username[0].toUpperCase() }}
+              <div style="display: flex; align-items: center; gap: 10px">
+                <div class="avatar avatar--sm">
+                  {{ (user.nickname || user.username)[0].toUpperCase() }}
                 </div>
-                <span style="font-weight: 500">{{ user.username }}</span>
+                <div style="min-width: 0">
+                  <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
+                    {{ user.nickname || user.username }}
+                  </div>
+                  <div class="text-4" style="font-size: 11px">@{{ user.username }}</div>
+                </div>
               </div>
             </td>
-            <td class="text-3" style="font-size: 13px">{{ user.email || '—' }}</td>
             <td>
-              <span class="pill" :class="user.role === 'admin' ? 'pill--accent' : 'pill--lavender'">
-                {{ user.role }}
+              <span class="pill" :class="ADMIN_ROLES.includes(user.role) ? 'pill--accent' : 'pill--lavender'">
+                {{ roleLabel(user.role) }}
               </span>
             </td>
-            <td class="text-3" style="font-size: 13px">{{ formatDate(user.created_at) }}</td>
             <td>
-              <div style="display: flex; gap: 4px">
-                <button
-                  class="btn btn--outline btn--sm"
-                  @click="openEditModal(user)"
-                  title="编辑"
-                >
+              <div v-if="user.id === authStore.user?.id" class="text-4" style="font-size: 12px">当前用户</div>
+              <div v-else style="display: flex; gap: 4px">
+                <button class="btn btn--outline btn--sm" @click="openEditModal(user)" title="编辑">
                   <PhPencil :size="13" />
                 </button>
                 <button
-                  class="btn btn--sm"
-                  :class="user.role === 'admin' ? '' : 'btn--danger'"
-                  :disabled="user.role === 'admin'"
-                  :title="user.role === 'admin' ? '不能删除管理员' : '删除'"
+                  class="btn btn--sm btn--danger"
+                  :disabled="ADMIN_ROLES.includes(user.role)"
+                  :title="ADMIN_ROLES.includes(user.role) ? '不能删除管理员' : '删除'"
                   @click="handleDelete(user)"
                 >
                   <PhTrash :size="13" />
@@ -84,74 +82,97 @@
 
       <!-- 分页 -->
       <div v-if="total > pageSize" class="admin__pagination">
-        <button
-          class="btn btn--outline btn--sm"
-          :disabled="page <= 1"
-          @click="page--; fetchUsers()"
-        >
+        <button class="btn btn--outline btn--sm" :disabled="page <= 1" @click="page--; fetchUsers()">
           <PhCaretLeft :size="14" /> 上一页
         </button>
         <span class="text-3" style="font-size: 13px">{{ page }} / {{ totalPages }}</span>
-        <button
-          class="btn btn--outline btn--sm"
-          :disabled="page >= totalPages"
-          @click="page++; fetchUsers()"
-        >
+        <button class="btn btn--outline btn--sm" :disabled="page >= totalPages" @click="page++; fetchUsers()">
           下一页 <PhCaretRight :size="14" />
         </button>
       </div>
     </div>
 
     <!-- 编辑弹窗 -->
-    <Transition name="fade">
-      <div v-if="editModal.show" class="modal-overlay" @click.self="editModal.show = false">
-        <div class="modal-panel card">
-          <div class="modal-panel__header">
-            <h3 class="font-display" style="font-size: 18px">编辑用户</h3>
-            <button class="topbar__icon-btn" @click="editModal.show = false">
-              <PhX :size="18" />
-            </button>
-          </div>
-          <div class="modal-panel__body">
-            <div class="auth-form__group">
-              <label class="auth-form__label">用户名</label>
-              <input class="input" :value="editModal.user?.username" disabled />
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="editModal.show" class="modal-overlay" @click.self="editModal.show = false">
+          <div class="modal-panel card">
+            <div class="modal-panel__header">
+              <h3 class="font-display" style="font-size: 18px">编辑用户</h3>
+              <button class="modal-panel__close" @click="editModal.show = false">
+                <PhX :size="18" />
+              </button>
             </div>
-            <div class="auth-form__group">
-              <label class="auth-form__label">新密码（留空则不修改）</label>
-              <input v-model="editForm.password" type="password" class="input" placeholder="至少 6 位" />
+            <div class="modal-panel__body">
+              <!-- 只读信息 -->
+              <div class="admin__readonly">
+                <div class="admin__readonly-row">
+                  <span class="text-4">ID</span>
+                  <span class="text-3 font-mono" style="font-size: 12px">{{ editModal.user?.id }}</span>
+                </div>
+                <div class="admin__readonly-row">
+                  <span class="text-4">用户名</span>
+                  <span style="font-size: 13px">@{{ editModal.user?.username }}</span>
+                </div>
+                <div v-if="editModal.user?.email" class="admin__readonly-row">
+                  <span class="text-4">邮箱</span>
+                  <span class="text-3" style="font-size: 13px">{{ editModal.user.email }}</span>
+                </div>
+                <div class="admin__readonly-row">
+                  <span class="text-4">注册时间</span>
+                  <span class="text-3" style="font-size: 13px">{{ formatDate(editModal.user?.created_at) }}</span>
+                </div>
+              </div>
+
+              <!-- 可编辑字段 -->
+              <div class="admin__field">
+                <label class="admin__label">昵称</label>
+                <input v-model="editForm.nickname" type="text" class="input" placeholder="留空则不修改" />
+              </div>
+              <div class="admin__field">
+                <label class="admin__label">角色</label>
+                <div class="admin__role-options">
+                  <button
+                    v-for="r in assignableRoles"
+                    :key="r"
+                    class="admin__role-option"
+                    :class="{ 'admin__role-option--active': editForm.role === r }"
+                    @click="editForm.role = r"
+                    type="button"
+                  >
+                    {{ roleLabel(r) }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="editError" class="admin__error">
+                <PhXCircle :size="14" />
+                {{ editError }}
+              </div>
             </div>
-            <div class="auth-form__group">
-              <label class="auth-form__label">角色</label>
-              <select v-model="editForm.role" class="input" style="cursor: pointer">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
+            <div class="modal-panel__footer">
+              <button class="btn btn--outline" @click="editModal.show = false">取消</button>
+              <button class="btn btn--primary" @click="handleEdit" :disabled="editLoading">
+                <PhCircleNotch v-if="editLoading" :size="16" class="spin" />
+                {{ editLoading ? '保存中...' : '保存' }}
+              </button>
             </div>
-            <div v-if="editError" class="auth-form__error">
-              <PhXCircle :size="14" />
-              {{ editError }}
-            </div>
-          </div>
-          <div class="modal-panel__footer">
-            <button class="btn btn--outline" @click="editModal.show = false">取消</button>
-            <button class="btn btn--primary" @click="handleEdit" :disabled="editLoading">
-              <PhCircleNotch v-if="editLoading" :size="16" class="spin" />
-              {{ editLoading ? '保存中...' : '保存' }}
-            </button>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useToast } from '../composables/useToast'
+import { roleLabel, ADMIN_ROLES, ASSIGNABLE_ROLES } from '../utils/role'
+import { useAuthStore } from '../stores/auth'
 import { listUsers, updateUser, deleteUser } from '../api'
 import {
   PhArrowClockwise, PhPencil, PhTrash, PhCaretLeft, PhCaretRight,
-  PhX, PhXCircle, PhCircleNotch
+  PhX, PhXCircle, PhCircleNotch, PhUsers
 } from '@phosphor-icons/vue'
 
 const users = ref([])
@@ -162,11 +183,14 @@ const loading = ref(false)
 const error = ref('')
 
 const editModal = reactive({ show: false, user: null })
-const editForm = reactive({ password: '', role: 'user' })
+const editForm = reactive({ nickname: '', role: 'user' })
 const editError = ref('')
 const editLoading = ref(false)
+const toast = useToast()
+const authStore = useAuthStore()
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
+const assignableRoles = computed(() => ASSIGNABLE_ROLES[authStore.user?.role] || [])
 
 async function fetchUsers() {
   loading.value = true
@@ -183,8 +207,9 @@ async function fetchUsers() {
 }
 
 function openEditModal(user) {
+  if (user.id === authStore.user?.id) return
   editModal.user = user
-  editForm.password = ''
+  editForm.nickname = ''
   editForm.role = user.role
   editError.value = ''
   editModal.show = true
@@ -193,12 +218,8 @@ function openEditModal(user) {
 async function handleEdit() {
   editError.value = ''
   const data = {}
-  if (editForm.password) {
-    if (editForm.password.length < 6) {
-      editError.value = '密码至少 6 位'
-      return
-    }
-    data.password = editForm.password
+  if (editForm.nickname) {
+    data.nickname = editForm.nickname
   }
   if (editForm.role !== editModal.user.role) {
     data.role = editForm.role
@@ -211,6 +232,7 @@ async function handleEdit() {
   editLoading.value = true
   try {
     await updateUser(editModal.user.id, data)
+    toast.success('已保存')
     editModal.show = false
     fetchUsers()
   } catch (e) {
@@ -224,9 +246,14 @@ async function handleDelete(user) {
   if (!confirm(`确定要删除用户 "${user.username}" 吗？（软删除）`)) return
   try {
     await deleteUser(user.id)
+    toast.success('已删除')
+    // 删完后当前页可能为空，回退一页
+    if (users.value.length <= 1 && page.value > 1) {
+      page.value--
+    }
     fetchUsers()
   } catch (e) {
-    alert(e.message)
+    toast.error(e.message)
   }
 }
 
@@ -240,6 +267,7 @@ onMounted(fetchUsers)
 
 <style scoped>
 .admin {
+  --color-danger: #c47878;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -250,12 +278,6 @@ onMounted(fetchUsers)
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-}
-
-.admin__toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
 .admin__table-wrap {
@@ -287,8 +309,6 @@ onMounted(fetchUsers)
 }
 
 .admin__table tbody tr {
-  position: relative;
-  overflow: hidden;
   transition: background var(--duration-medium-1) var(--ease-standard);
 }
 
@@ -309,104 +329,78 @@ onMounted(fetchUsers)
   border-top: 1px solid var(--border);
 }
 
-/* ---- Modal ---- */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+/* ---- Edit Modal: read-only info ---- */
+.admin__readonly {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 150;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius-m);
+  background: var(--bg-muted);
 }
 
-[data-theme="dark"] .modal-overlay {
-  background: rgba(0, 0, 0, 0.5);
-}
-
-.modal-panel {
-  width: 100%;
-  max-width: 440px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow-4);
-  backdrop-filter: blur(24px) saturate(1.4);
-}
-
-[data-theme="dark"] .modal-panel {
-  background: rgba(26, 23, 30, 0.92);
-}
-
-.modal-panel__header {
+.admin__readonly-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 0;
+  gap: 12px;
 }
 
-.modal-panel__body {
-  padding: 20px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.modal-panel__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid var(--border);
-}
-
-.auth-form__group {
+/* ---- Edit Modal: fields ---- */
+.admin__field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.auth-form__label {
+.admin__label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-2);
 }
 
-.auth-form__error {
+.admin__error {
+  --color-danger: #c47878;
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #c47878;
+  color: var(--color-danger);
 }
 
-/* topbar__icon-btn inherited from layout */
-.topbar__icon-btn {
-  position: relative;
+/* ---- Role Option Buttons ---- */
+.admin__role-options {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-  background: none;
-  border: none;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin__role-option {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--border);
+  background: var(--bg-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
   cursor: pointer;
-  overflow: hidden;
+  transition: all var(--duration-medium-1) var(--ease-standard);
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
+.admin__role-option:hover {
+  border-color: var(--border-hover);
+  background: var(--state-hover);
 }
 
-.spin {
-  animation: spin 0.8s linear infinite;
+.admin__role-option--active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--accent);
+  font-weight: 500;
 }
 
 @media (max-width: 600px) {
-  .admin__table th:nth-child(4),
-  .admin__table td:nth-child(4),
-  .admin__table th:nth-child(5),
-  .admin__table td:nth-child(5) {
+  .admin__table th:nth-child(2),
+  .admin__table td:nth-child(2) {
     display: none;
   }
 }

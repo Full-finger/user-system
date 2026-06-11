@@ -3,22 +3,28 @@ package controller
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
+	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
+var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
+
 // UserController 用户相关接口的处理器。
 type UserController struct {
 	svc        *service.UserService
 	captchaSvc *service.CaptchaService
+	guestCfg   *config.GuestJWTConfig
 }
 
-func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService) *UserController {
-	return &UserController{svc: svc, captchaSvc: captchaSvc}
+func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig) *UserController {
+	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg}
 }
 
 func success(c echo.Context, data any) error {
@@ -27,14 +33,13 @@ func success(c echo.Context, data any) error {
 	})
 }
 
-func bindAndValidate(c echo.Context, req any) error {
-	if err := c.Bind(req); err != nil {
-		return apperror.BadRequest("参数错误")
+func (ctrl *UserController) GuestToken(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	token, err := auth.GenerateGuestToken(uc.DeviceID, ctrl.guestCfg)
+	if err != nil {
+		return apperror.Internal("生成游客令牌失败")
 	}
-	if err := c.Validate(req); err != nil {
-		return apperror.BadRequest(err.Error())
-	}
-	return nil
+	return success(c, param.LoginResponse{Token: token})
 }
 
 func (ctrl *UserController) CheckUsername(c echo.Context) error {
@@ -42,8 +47,8 @@ func (ctrl *UserController) CheckUsername(c echo.Context) error {
 	if username == "" {
 		return apperror.BadRequest("请输入用户名")
 	}
-	if len(username) < 3 {
-		return apperror.BadRequest("用户名至少 3 个字符")
+	if !usernameRe.MatchString(username) {
+		return apperror.BadRequest("用户名仅限字母、数字和下划线，3-30 位")
 	}
 	if err := ctrl.svc.CheckUsername(c.Request().Context(), username); err != nil {
 		return err
@@ -53,7 +58,7 @@ func (ctrl *UserController) CheckUsername(c echo.Context) error {
 
 func (ctrl *UserController) Register(c echo.Context) error {
 	var req param.RegisterRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
@@ -62,6 +67,7 @@ func (ctrl *UserController) Register(c echo.Context) error {
 	user, err := ctrl.svc.Register(c.Request().Context(), service.RegisterInput{
 		Username: req.Username,
 		Password: req.Password,
+		Nickname: req.Nickname,
 		Email:    req.Email,
 	})
 	if err != nil {
@@ -72,7 +78,7 @@ func (ctrl *UserController) Register(c echo.Context) error {
 
 func (ctrl *UserController) Login(c echo.Context) error {
 	var req param.LoginRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	token, err := ctrl.svc.Login(c.Request().Context(), service.LoginInput{
@@ -86,11 +92,8 @@ func (ctrl *UserController) Login(c echo.Context) error {
 }
 
 func (ctrl *UserController) GetProfile(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
-	user, err := ctrl.svc.GetProfile(c.Request().Context(), userID)
+	uc := auth.GetUserContext(c)
+	user, err := ctrl.svc.GetProfile(c.Request().Context(), uc)
 	if err != nil {
 		return err
 	}
@@ -98,16 +101,14 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 }
 
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
-	}
+	uc := auth.GetUserContext(c)
 	var req param.UpdateRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), userID, service.ProfileUpdateInput{
+	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), uc, service.ProfileUpdateInput{
 		Password: req.Password,
+		Nickname: req.Nickname,
 	})
 	if err != nil {
 		return err
@@ -116,15 +117,9 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 }
 
 func (ctrl *UserController) ListUsers(c echo.Context) error {
-	page, _ := strconv.Atoi(c.QueryParam("page"))
-	pageSize, _ := strconv.Atoi(c.QueryParam("page_size"))
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 || pageSize > 100 {
-		pageSize = 20
-	}
-	users, total, err := ctrl.svc.ListUsers(c.Request().Context(), page, pageSize)
+	uc := auth.GetUserContext(c)
+	page, pageSize := parsePage(c)
+	users, total, err := ctrl.svc.ListUsers(c.Request().Context(), uc, page, pageSize)
 	if err != nil {
 		return err
 	}
@@ -136,7 +131,8 @@ func (ctrl *UserController) GetUser(c echo.Context) error {
 	if err != nil {
 		return apperror.BadRequest("无效的ID")
 	}
-	user, err := ctrl.svc.GetProfile(c.Request().Context(), uint(id))
+	uc := auth.GetUserContext(c)
+	user, err := ctrl.svc.FindByID(c.Request().Context(), uc, uint(id))
 	if err != nil {
 		return err
 	}
@@ -149,11 +145,13 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 		return apperror.BadRequest("无效的ID")
 	}
 	var req param.UpdateRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
-	user, err := ctrl.svc.UpdateUser(c.Request().Context(), uint(id), service.UpdateInput{
+	uc := auth.GetUserContext(c)
+	user, err := ctrl.svc.UpdateUser(c.Request().Context(), uc, uint(id), service.UpdateInput{
 		Password: req.Password,
+		Nickname: req.Nickname,
 		Role:     req.Role,
 	})
 	if err != nil {
@@ -167,7 +165,8 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 	if err != nil {
 		return apperror.BadRequest("无效的ID")
 	}
-	if err := ctrl.svc.DeleteUser(c.Request().Context(), uint(id)); err != nil {
+	uc := auth.GetUserContext(c)
+	if err := ctrl.svc.DeleteUser(c.Request().Context(), uc, uint(id)); err != nil {
 		return err
 	}
 	return success(c, nil)
@@ -175,7 +174,7 @@ func (ctrl *UserController) DeleteUser(c echo.Context) error {
 
 func (ctrl *UserController) SendCode(c echo.Context) error {
 	var req param.SendCodeRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.SendCode(c.Request().Context(), req.Email); err != nil {
@@ -186,7 +185,7 @@ func (ctrl *UserController) SendCode(c echo.Context) error {
 
 func (ctrl *UserController) CodeLogin(c echo.Context) error {
 	var req param.CodeLoginRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
@@ -199,19 +198,29 @@ func (ctrl *UserController) CodeLogin(c echo.Context) error {
 	return success(c, param.LoginResponse{Token: token})
 }
 
-func (ctrl *UserController) BindEmail(c echo.Context) error {
-	userID, ok := c.Get("user_id").(uint)
-	if !ok {
-		return apperror.Unauthorized("未认证")
+func (ctrl *UserController) AppointModerator(c echo.Context) error {
+	var req param.AppointModeratorRequest
+	if err := param.BindAndValidate(c, &req); err != nil {
+		return err
 	}
+	uc := auth.GetUserContext(c)
+	user, err := ctrl.svc.AppointModerator(c.Request().Context(), uc, req.UserID, req.NodeIDs)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToUserResponse(user))
+}
+
+func (ctrl *UserController) BindEmail(c echo.Context) error {
+	uc := auth.GetUserContext(c)
 	var req param.BindEmailRequest
-	if err := bindAndValidate(c, &req); err != nil {
+	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
 	if err := ctrl.captchaSvc.VerifyCode(c.Request().Context(), req.Email, req.Code); err != nil {
 		return err
 	}
-	if err := ctrl.svc.BindEmail(c.Request().Context(), userID, req.Email); err != nil {
+	if err := ctrl.svc.BindEmail(c.Request().Context(), uc, req.Email); err != nil {
 		return err
 	}
 	return success(c, nil)

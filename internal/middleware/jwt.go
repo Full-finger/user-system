@@ -1,94 +1,110 @@
-// Package middleware 提供 Echo 中间件：JWT 鉴权、权限控制、限流。
 package middleware
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
+	"github.com/full-finger/user-system/pkg/randstr"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 )
 
-// JWTMiddleware 解析 Bearer token，将 user_id/username/role 注入 Context。
-func JWTMiddleware(cfg *config.JWTConfig) echo.MiddlewareFunc {
+// AuthMiddleware 统一身份解析中间件，替代原 JWTMiddleware/OptionalJWTMiddleware/AdminOnly。
+// 无 token 降级为 Guest，JWT 解析失败也降级为 Guest。
+func AuthMiddleware(cfg *config.JWTConfig, guestCfg *config.GuestJWTConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			auth := c.Request().Header.Get("Authorization")
-			if auth == "" {
-				return apperror.Unauthorized("缺少token")
-			}
-
-			parts := strings.SplitN(auth, " ", 2)
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				return apperror.Unauthorized("token格式错误")
-			}
-
-			token, err := jwt.Parse(parts[1], func(t *jwt.Token) (any, error) {
-				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-				}
-				return []byte(cfg.Secret), nil
-			})
-			if err != nil || !token.Valid {
-				return apperror.Unauthorized("token无效或已过期")
-			}
-
-			claims, ok := token.Claims.(jwt.MapClaims)
-			if !ok {
-				return apperror.Unauthorized("token解析失败")
-			}
-
-			userID, ok := claimFloat(claims, "user_id")
-			if !ok {
-				return apperror.Unauthorized("token解析失败")
-			}
-			username, ok := claimString(claims, "username")
-			if !ok {
-				return apperror.Unauthorized("token解析失败")
-			}
-			role, ok := claimString(claims, "role")
-			if !ok {
-				return apperror.Unauthorized("token解析失败")
-			}
-
-			c.Set("user_id", uint(userID))
-			c.Set("username", username)
-			c.Set("role", role)
-
+			uc := parseIdentity(c, cfg, guestCfg)
+			auth.SetUserContext(c, uc)
 			return next(c)
 		}
 	}
 }
 
-// AdminOnly 限制仅 admin 角色可访问，需在 JWTMiddleware 之后使用。
-func AdminOnly() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			role, _ := c.Get("role").(string)
-			if role != "admin" {
-				return apperror.Forbidden("权限不足")
-			}
-			return next(c)
+func parseIdentity(c echo.Context, cfg *config.JWTConfig, guestCfg *config.GuestJWTConfig) *auth.UserContext {
+	deviceID := c.Request().Header.Get("X-Device-ID")
+
+	uc := &auth.UserContext{DeviceID: deviceID}
+
+	authHeader := c.Request().Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+		if parsed := parseToken(tokenStr, cfg, guestCfg); parsed != nil {
+			return parsed
 		}
 	}
+
+	// 无 token 或解析失败 → Guest
+	if uc.DeviceID == "" {
+		uc.DeviceID = randstr.RandomHex(16)
+	}
+	return uc
 }
 
-func claimFloat(claims jwt.MapClaims, key string) (float64, bool) {
-	v, ok := claims[key]
-	if !ok {
-		return 0, false
+// parseToken 尝试解析用户 JWT 或 Guest JWT，失败返回 nil。
+func parseToken(tokenStr string, cfg *config.JWTConfig, guestCfg *config.GuestJWTConfig) *auth.UserContext {
+	// 尝试用户 JWT
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(cfg.Secret), nil
+	})
+	if err == nil && token.Valid {
+		if uc := extractUserClaims(token.Claims); uc != nil {
+			return uc
+		}
 	}
-	f, ok := v.(float64)
-	return f, ok
+
+	// 尝试 Guest JWT
+	if guestCfg != nil {
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
+			return []byte(guestCfg.Secret), nil
+		})
+		if err == nil && token.Valid {
+			if uc := extractGuestClaims(token.Claims); uc != nil {
+				return uc
+			}
+		}
+	}
+
+	return nil
 }
 
-func claimString(claims jwt.MapClaims, key string) (string, bool) {
-	v, ok := claims[key]
+func extractUserClaims(claims jwt.Claims) *auth.UserContext {
+	mc, ok := claims.(jwt.MapClaims)
 	if !ok {
-		return "", false
+		return nil
 	}
-	s, ok := v.(string)
-	return s, ok
+	userID, ok := mc["user_id"].(float64)
+	if !ok {
+		return nil
+	}
+	username, _ := mc["username"].(string)
+	role := auth.RoleUser
+	if r, ok := mc["role"].(float64); ok {
+		role = auth.Role(int(r))
+	}
+	return &auth.UserContext{
+		Role:     role,
+		UserID:   uint(userID),
+		Username: username,
+	}
+}
+
+func extractGuestClaims(claims jwt.Claims) *auth.UserContext {
+	mc, ok := claims.(jwt.MapClaims)
+	if !ok {
+		return nil
+	}
+	deviceID, _ := mc["device_id"].(string)
+	return &auth.UserContext{
+		Role:     auth.RoleGuest,
+		DeviceID: deviceID,
+	}
 }

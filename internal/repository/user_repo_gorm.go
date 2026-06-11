@@ -44,8 +44,8 @@ func (r *userRepoGorm) FindByEmail(ctx context.Context, email string) (*model.Us
 	return &user, nil
 }
 
-func (r *userRepoGorm) Update(ctx context.Context, id uint, fields map[string]any) error {
-	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(fields).Error
+func (r *userRepoGorm) Update(ctx context.Context, id uint, upd UserUpdate) error {
+	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", id).Updates(upd).Error
 }
 
 func (r *userRepoGorm) Delete(ctx context.Context, id uint) error {
@@ -67,7 +67,7 @@ func (r *userRepoGorm) FindPage(ctx context.Context, page, size int) ([]model.Us
 		return nil, 0, err
 	}
 	offset := (page - 1) * size
-	if err := r.db.WithContext(ctx).Offset(offset).Limit(size).Find(&users).Error; err != nil {
+	if err := r.db.WithContext(ctx).Order("id desc").Offset(offset).Limit(size).Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
 	return users, total, nil
@@ -84,6 +84,14 @@ func (r *userRepoGorm) ExistsByUsername(ctx context.Context, username string) (b
 func (r *userRepoGorm) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.User{}).Where("email = ?", email).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *userRepoGorm) ExistsByRole(ctx context.Context, role int) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.User{}).Where("role = ?", role).Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil

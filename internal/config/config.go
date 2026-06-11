@@ -22,6 +22,8 @@ type Config struct {
 	SMTP      SMTPConfig       `yaml:"smtp"`
 	Captcha   CaptchaConfig    `yaml:"captcha"`
 	RateLimit RateLimitConfig  `yaml:"rate_limit"`
+	GuestJWT  GuestJWTConfig   `yaml:"guest_jwt"`
+	Admin     AdminConfig      `yaml:"admin"`
 	Log       logger.LogConfig `yaml:"log"`
 }
 
@@ -81,6 +83,17 @@ type RateLimitConfig struct {
 	MaxRequest int           `yaml:"max_requests"`
 }
 
+type GuestJWTConfig struct {
+	Secret string        `yaml:"secret"`
+	Expire time.Duration `yaml:"expire"`
+}
+
+type AdminConfig struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Email    string `yaml:"email"`
+}
+
 // Load 从 YAML 文件加载配置并校验。
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -113,6 +126,17 @@ func (c *Config) Validate() error {
 	}
 	if c.RateLimit.MaxRequest <= 0 {
 		return fmt.Errorf("%w: rate_limit max_requests 必须大于 0", ErrInvalidConfig)
+	}
+	switch c.Server.Env {
+	case "development", "test", "production":
+	default:
+		return fmt.Errorf("%w: server.env 必须是 development/test/production 之一", ErrInvalidConfig)
+	}
+	if len(c.GuestJWT.Secret) < 16 {
+		return fmt.Errorf("%w: guest_jwt secret 长度不能少于 16", ErrInvalidConfig)
+	}
+	if c.GuestJWT.Expire <= 0 {
+		return fmt.Errorf("%w: guest_jwt expire 必须大于 0", ErrInvalidConfig)
 	}
 	return nil
 }

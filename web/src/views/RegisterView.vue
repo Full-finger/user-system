@@ -2,9 +2,10 @@
   <div class="auth-page">
     <div class="auth-card card fade-up">
       <div class="auth-card__header">
-        <PhSparkle :size="28" weight="fill" class="auth-card__logo" />
+        <img v-if="siteConfig.siteLogo" :src="siteConfig.siteLogo" alt="Logo" class="auth-card__logo-img" />
+        <PhSparkle v-else :size="28" weight="fill" class="auth-card__logo" />
         <h1 class="auth-card__title font-display">注册账号</h1>
-        <p class="auth-card__desc text-3">加入 DevMoe 社区</p>
+        <p class="auth-card__desc text-3">加入 {{ siteConfig.siteName }}</p>
       </div>
 
       <!-- 步骤指示器 -->
@@ -25,7 +26,7 @@
                 type="text"
                 class="input"
                 :class="{ 'input--error': error }"
-                placeholder="3-50 个字符"
+                placeholder="字母、数字、下划线，3-30 位"
                 autocomplete="username"
                 @blur="handleCheckUsername"
               />
@@ -38,13 +39,25 @@
             </div>
 
             <div class="auth-form__group">
+              <label class="auth-form__label">昵称 <span class="text-4" style="font-weight: 400">（选填）</span></label>
+              <input
+                v-model="form.nickname"
+                type="text"
+                class="input"
+                :class="{ 'input--error': error }"
+                placeholder="不填则默认与用户名相同"
+                autocomplete="nickname"
+              />
+            </div>
+
+            <div class="auth-form__group">
               <label class="auth-form__label">密码</label>
               <input
                 v-model="form.password"
                 type="password"
                 class="input"
                 :class="{ 'input--error': error }"
-                placeholder="至少 6 位"
+                placeholder="至少 8 位，须包含字母和数字"
                 autocomplete="new-password"
                 @input="updatePasswordStrength"
               />
@@ -153,6 +166,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { siteConfig } from '../config/site'
 import { sendCode, checkUsername } from '../api'
 import { PhSparkle, PhXCircle, PhCheckCircle, PhCircleNotch, PhCheck, PhX } from '@phosphor-icons/vue'
 
@@ -160,7 +174,7 @@ const auth = useAuthStore()
 const router = useRouter()
 
 const step = ref(1)
-const form = reactive({ username: '', password: '', confirmPassword: '', email: '', code: '' })
+const form = reactive({ username: '', nickname: '', password: '', confirmPassword: '', email: '', code: '' })
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
@@ -169,8 +183,10 @@ const sendingCode = ref(false)
 const usernameStatus = ref('') // '' | 'checking' | 'available' | 'taken'
 const passwordStrength = reactive({ level: '', percent: 0, text: '' })
 
+const usernameRe = /^[a-zA-Z0-9_]{3,30}$/
+
 async function handleCheckUsername() {
-  if (form.username.length < 3) {
+  if (!usernameRe.test(form.username)) {
     usernameStatus.value = ''
     return
   }
@@ -192,8 +208,8 @@ function updatePasswordStrength() {
     return
   }
   let score = 0
-  if (pwd.length >= 6) score++
-  if (pwd.length >= 10) score++
+  if (pwd.length >= 8) score++
+  if (pwd.length >= 12) score++
   if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++
   if (/\d/.test(pwd)) score++
   if (/[^a-zA-Z0-9]/.test(pwd)) score++
@@ -219,16 +235,16 @@ function handleNext() {
     error.value = '请填写用户名和密码'
     return
   }
-  if (form.username.length < 3) {
-    error.value = '用户名至少 3 个字符'
+  if (!usernameRe.test(form.username)) {
+    error.value = '用户名仅限字母、数字和下划线，3-30 位'
     return
   }
   if (usernameStatus.value === 'taken') {
     error.value = '用户名已被占用，请更换'
     return
   }
-  if (form.password.length < 6) {
-    error.value = '密码至少 6 位'
+  if (form.password.length < 8 || !/[a-zA-Z]/.test(form.password) || !/\d/.test(form.password)) {
+    error.value = '密码至少 8 位，须包含字母和数字'
     return
   }
   if (form.password !== form.confirmPassword) {
@@ -264,7 +280,7 @@ async function handleRegister() {
 
   loading.value = true
   try {
-    await auth.register({ username: form.username, password: form.password, email: form.email, code: form.code })
+    await auth.register({ username: form.username, password: form.password, nickname: form.nickname, email: form.email, code: form.code })
     success.value = '注册成功，正在跳转登录...'
     setTimeout(() => router.push('/login'), 1500)
   } catch (e) {
@@ -278,6 +294,14 @@ async function handleRegister() {
 <style scoped>
 .auth-card__header {
   margin-bottom: 20px;
+}
+
+.auth-card__logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: var(--radius-s);
+  margin-bottom: 8px;
 }
 
 /* 步骤指示器 */

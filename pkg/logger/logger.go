@@ -45,19 +45,21 @@ func New(cfg LogConfig) *zap.Logger {
 	fileCfg := baseEncoderCfg
 	fileCfg.EncodeLevel = zapcore.LowercaseLevelEncoder
 
+	cores := []zapcore.Core{consoleCore}
+
 	if cfg.Filename != "" {
 		_ = os.MkdirAll(filepath.Dir(cfg.Filename), 0755)
+		writer := &lumberjack.Logger{
+			Filename:   cfg.Filename,
+			MaxSize:    cfg.MaxSize,
+			MaxBackups: cfg.MaxBackups,
+			MaxAge:     cfg.MaxAge,
+			Compress:   cfg.Compress,
+		}
+		cores = append(cores, zapcore.NewCore(zapcore.NewJSONEncoder(fileCfg), zapcore.AddSync(writer), level))
 	}
-	writer := &lumberjack.Logger{
-		Filename:   cfg.Filename,
-		MaxSize:    cfg.MaxSize,
-		MaxBackups: cfg.MaxBackups,
-		MaxAge:     cfg.MaxAge,
-		Compress:   cfg.Compress,
-	}
-	fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(fileCfg), zapcore.AddSync(writer), level)
 
-	core := zapcore.NewTee(consoleCore, fileCore)
+	core := zapcore.NewTee(cores...)
 	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 }
 
