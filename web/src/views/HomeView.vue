@@ -2,7 +2,7 @@
   <div class="home">
     <div class="home__header fade-up">
       <h1 class="font-display home__title">发现</h1>
-      <button class="btn btn--primary" @click="showCreateModal = true" v-if="auth.isLoggedIn">
+      <button class="btn btn--primary" @click="$router.push({ name: 'CreatePost' })" v-if="auth.isLoggedIn">
         <PhPencilSimpleLine :size="16" />
         发帖
       </button>
@@ -67,7 +67,7 @@
       <div class="empty-state__icon"><PhNote :size="32" weight="bold" /></div>
       <h2 class="font-display" style="font-size: 18px; margin-bottom: 6px">还没有帖子</h2>
       <p class="text-3" style="font-size: 14px">成为第一个发帖的人吧！</p>
-      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" style="margin-top: 12px" @click="showCreateModal = true">
+      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" style="margin-top: 12px" @click="$router.push({ name: 'CreatePost' })">
         <PhPencilSimpleLine :size="14" /> 发帖
       </button>
     </div>
@@ -81,55 +81,18 @@
       <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
     </div>
 
-    <!-- Create Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
-          <div class="modal-panel card">
-            <div class="modal-panel__header">
-              <h2 class="font-display" style="font-size: 18px">发布新帖</h2>
-              <button class="modal-panel__close" @click="showCreateModal = false"><PhX :size="18" /></button>
-            </div>
-            <div class="modal-panel__body">
-              <div class="auth-form__group">
-                <label class="auth-form__label">选择节点</label>
-                <select v-model="newPost.node_id" class="input" style="height: 38px">
-                  <option :value="null" disabled>请选择节点</option>
-                  <option v-for="node in allNodes" :key="node.id" :value="node.id">{{ node.name }}</option>
-                </select>
-              </div>
-              <div class="auth-form__group">
-                <label class="auth-form__label">标题</label>
-                <input v-model="newPost.title" class="input" placeholder="输入帖子标题..." style="border: none; background: transparent" />
-              </div>
-              <div class="auth-form__group" style="min-height: 120px">
-                <label class="auth-form__label">内容（支持 @username 提及他人）</label>
-                <textarea v-model="newPost.content" class="input" placeholder="写下你的想法..." style="border: none; background: transparent; resize: vertical; min-height: 80px"></textarea>
-              </div>
-            </div>
-            <div class="modal-panel__footer">
-              <button class="btn btn--outline btn--sm" @click="showCreateModal = false">取消</button>
-              <button class="btn btn--primary btn--sm" @click="handleCreatePost" :disabled="!newPost.node_id || !newPost.title || !newPost.content || creating">
-                <PhCircleNotch v-if="creating" :size="14" class="spin" />
-                <span v-else>发布</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
-import { listPosts, listFeed, createPost, toggleLikePost, listNodes } from '../api'
+import { listPosts, listFeed, toggleLikePost } from '../api'
 import { formatTime, formatCount } from '../utils/format'
 import {
   PhPencilSimpleLine, PhThumbsUp, PhClock, PhChatCircle, PhEye,
-  PhHouse, PhCompass, PhNote, PhCircleNotch, PhX
+  PhHouse, PhCompass, PhNote, PhCircleNotch
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
@@ -146,11 +109,6 @@ const loadingMore = ref(false)
 const page = ref(1)
 const hasMore = ref(true)
 const likedPosts = ref(new Set())
-const allNodes = ref([])
-
-const showCreateModal = ref(false)
-const creating = ref(false)
-const newPost = reactive({ node_id: null, title: '', content: '' })
 
 async function fetchPosts(reset = true) {
   if (reset) { page.value = 1; posts.value = []; loading.value = true; hasMore.value = true }
@@ -182,23 +140,8 @@ async function handleLike(post) {
   } catch (e) { toast.error(e.message) }
 }
 
-async function handleCreatePost() {
-  if (!newPost.node_id || !newPost.title || !newPost.content) return
-  creating.value = true
-  try {
-    await createPost({ node_id: newPost.node_id, title: newPost.title, content: newPost.content })
-    showCreateModal.value = false
-    newPost.node_id = null; newPost.title = ''; newPost.content = ''
-    fetchPosts(true)
-    toast.success('发布成功')
-  } catch (e) { toast.error(e.message || '发帖失败') }
-  finally { creating.value = false }
-}
-
-
 onMounted(async () => {
   await fetchPosts()
-  try { const res = await listNodes(); allNodes.value = res.data?.nodes || [] } catch (e) { toast.error(e.message) }
 })
 </script>
 

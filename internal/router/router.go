@@ -11,7 +11,7 @@ import (
 )
 
 // Setup 注册所有 API 路由，统一走 AuthMiddleware + 限流，权限判断下沉到 Service 层。
-func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, commentCtrl *controller.CommentController, cfg *config.Config, rdb *redis.Client) {
+func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, commentCtrl *controller.CommentController, mentionCtrl *controller.MentionController, cfg *config.Config, rdb *redis.Client) {
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -53,6 +53,7 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.PUT("/comments/:id/like", commentCtrl.ToggleCommentLike)
 	api.GET("/feed", postCtrl.ListFeed)
 	api.PUT("/users/:username/follow", followCtrl.ToggleFollow)
+	api.GET("/mention-cache", mentionCtrl.GetMentionCache)
 
 	// 管理（Service 层 RequireRole(Admin/SuperAdmin)）
 	api.GET("/admin/users", userCtrl.ListUsers)

@@ -181,4 +181,9 @@ export function getFollowings(username, params) {
   return api.get(`/users/${username}/followings`, { params })
 }
 
+// ---- Mention ----
+export function getMentionCache(params) {
+  return api.get('/mention-cache', { params })
+}
+
 export default api

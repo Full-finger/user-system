@@ -68,6 +68,14 @@ func (r *followRepoGorm) FollowingIDs(ctx context.Context, userID uint) ([]uint,
 	return ids, nil
 }
 
+func (r *followRepoGorm) FollowerIDs(ctx context.Context, userID uint) ([]uint, error) {
+	var ids []uint
+	if err := r.db.WithContext(ctx).Model(&model.Follow{}).Where("following_id = ?", userID).Pluck("follower_id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r *followRepoGorm) CountFollowers(ctx context.Context, userID uint) (int64, error) {
 	var count int64
 	if err := r.db.WithContext(ctx).Model(&model.Follow{}).Where("following_id = ?", userID).Count(&count).Error; err != nil {

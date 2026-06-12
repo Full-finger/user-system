@@ -78,11 +78,12 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	nodeSvc.SeedNodes(context.Background())
 	userSvc.SeedAdmin(context.Background(), &cfg.Admin)
 
-	userCtrl := controller.NewUserController(userSvc, captchaSvc, &cfg.GuestJWT)
+	userCtrl := controller.NewUserController(userSvc, captchaSvc, &cfg.GuestJWT, postRepo, commentRepo, likeRepo)
 	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, log)
 	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc)
 	followCtrl := controller.NewFollowController(followSvc)
 	commentCtrl := controller.NewCommentController(commentSvc, log)
+	mentionCtrl := controller.NewMentionController(userRepo, followRepo, nodeModRepo)
 
 	// --- Echo 配置 ---
 	e.Validator = validator.New()
@@ -114,5 +115,5 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	router.Setup(e, userCtrl, postCtrl, nodeCtrl, followCtrl, commentCtrl, cfg, rdb)
+	router.Setup(e, userCtrl, postCtrl, nodeCtrl, followCtrl, commentCtrl, mentionCtrl, cfg, rdb)
 }

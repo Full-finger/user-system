@@ -87,6 +87,14 @@ func (r *commentRepoGorm) CountReplies(ctx context.Context, parentIDs []uint) (m
 	return result, nil
 }
 
+func (r *commentRepoGorm) CountByUserID(ctx context.Context, userID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Comment{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *commentRepoGorm) FindCommentIDsByPostID(ctx context.Context, postID uint) ([]uint, error) {
 	var ids []uint
 	if err := r.db.WithContext(ctx).Model(&model.Comment{}).Where("post_id = ?", postID).Pluck("id", &ids).Error; err != nil {

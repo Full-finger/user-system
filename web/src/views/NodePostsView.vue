@@ -22,7 +22,7 @@
         <PhChatCircle :size="14" /> 最多回复
       </button>
       <div style="flex:1"></div>
-      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" @click="showCreateModal = true">
+      <button v-if="auth.isLoggedIn" class="btn btn--primary btn--sm" @click="$router.push({ name: 'CreatePost', query: { node_id: route.params.id } })">
         <PhPencilSimpleLine :size="14" /> 发帖
       </button>
     </div>
@@ -82,53 +82,19 @@
       <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
     </div>
 
-    <!-- Create Modal -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showCreateModal" class="modal-overlay" @click.self="showCreateModal = false">
-          <div class="modal-panel card">
-            <div class="modal-panel__header">
-              <h2 class="font-display" style="font-size: 18px">发布新帖</h2>
-              <button class="modal-panel__close" @click="showCreateModal = false"><PhX :size="18" /></button>
-            </div>
-            <div class="modal-panel__body">
-              <div class="auth-form__group">
-                <label class="auth-form__label">节点</label>
-                <input class="input" :value="node?.name" disabled style="border: none; background: transparent" />
-              </div>
-              <div class="auth-form__group">
-                <label class="auth-form__label">标题</label>
-                <input v-model="newPost.title" class="input" placeholder="输入帖子标题..." style="border: none; background: transparent" />
-              </div>
-              <div class="auth-form__group" style="min-height: 120px">
-                <label class="auth-form__label">内容（支持 @username 提及他人）</label>
-                <textarea v-model="newPost.content" class="input" placeholder="写下你的想法..." style="border: none; background: transparent; resize: vertical; min-height: 80px"></textarea>
-              </div>
-            </div>
-            <div class="modal-panel__footer">
-              <button class="btn btn--outline btn--sm" @click="showCreateModal = false">取消</button>
-              <button class="btn btn--primary btn--sm" @click="handleCreatePost" :disabled="!newPost.title || !newPost.content || creating">
-                <PhCircleNotch v-if="creating" :size="14" class="spin" />
-                <span v-else>发布</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
-import { getNode, getNodePosts, createPost, toggleLikePost } from '../api'
+import { getNode, getNodePosts, toggleLikePost } from '../api'
 import { formatTime } from '../utils/format'
 import {
   PhStack, PhNote, PhClock, PhChatCircle, PhEye, PhThumbsUp,
-  PhPencilSimpleLine, PhCircleNotch, PhX
+  PhPencilSimpleLine, PhCircleNotch
 } from '@phosphor-icons/vue'
 
 const route = useRoute()
@@ -143,10 +109,6 @@ const page = ref(1)
 const hasMore = ref(true)
 const sort = ref('time')
 const likedPosts = ref(new Set())
-
-const showCreateModal = ref(false)
-const creating = ref(false)
-const newPost = reactive({ title: '', content: '' })
 
 async function fetchNode() {
   try { const res = await getNode(route.params.id); node.value = res.data } catch (e) { toast.error(e.message) }
@@ -180,19 +142,6 @@ async function handleLike(post) {
     else { likedPosts.value.delete(post.code); post.like_count = Math.max(0, post.like_count - 1) }
   } catch (e) { toast.error(e.message) }
 }
-
-async function handleCreatePost() {
-  if (!newPost.title || !newPost.content) return
-  creating.value = true
-  try {
-    await createPost({ node_id: Number(route.params.id), title: newPost.title, content: newPost.content })
-    showCreateModal.value = false; newPost.title = ''; newPost.content = ''
-    fetchPosts(true); fetchNode()
-    toast.success('发布成功')
-  } catch (e) { toast.error(e.message || '发帖失败') }
-  finally { creating.value = false }
-}
-
 
 onMounted(() => { fetchNode(); fetchPosts() })
 watch(() => route.params.id, () => { fetchNode(); fetchPosts() })

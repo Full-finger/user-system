@@ -39,7 +39,7 @@
         <!-- Mentions -->
         <div v-if="post.mentions?.length" class="post-detail__mentions" style="margin-top: 12px">
           <span v-for="m in post.mentions" :key="m.id" class="pill pill--lavender" style="font-size: 11px">
-            @{{ m.username }}
+            @{{ m.nickname || m.username }}
           </span>
         </div>
 
@@ -74,13 +74,13 @@
 
         <!-- Comment input -->
         <div v-if="auth.isLoggedIn" class="card comment-input">
-          <textarea
+          <MentionInput
             v-model="newComment"
             :placeholder="replyTarget ? `回复 @${replyTarget.user.nickname || replyTarget.user.username}...` : '写下你的评论...'"
-            rows="3"
-            @keydown.ctrl.enter="submitComment"
-            @keydown.meta.enter="submitComment"
-          ></textarea>
+            :rows="3"
+            :node-id="post?.node?.id"
+            @keydown="handleCommentKeydown"
+          />
           <div class="comment-input__footer">
             <span class="text-4" style="font-size: 12px">Ctrl+Enter 发送</span>
             <div style="display: flex; gap: 8px; align-items: center">
@@ -185,6 +185,7 @@ import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { getPost, toggleLikePost, deletePost, listComments, createComment, listReplies, toggleCommentLike } from '../api'
 import { renderContent } from '../utils/render'
+import MentionInput from '../components/MentionInput.vue'
 import {
   PhCaretRight, PhClock, PhEye, PhThumbsUp, PhTrash, PhMagnifyingGlass,
   PhChatCircle, PhChatCircleDots, PhArrowBendUpLeft
@@ -341,6 +342,12 @@ function handleContentClick(e) {
   if (link) {
     e.preventDefault()
     router.push({ name: 'UserProfile', params: { username: link.dataset.username } })
+  }
+}
+
+function handleCommentKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    submitComment()
   }
 }
 

@@ -90,11 +90,11 @@ import { PhClock, PhGearSix, PhNote, PhChatCircle, PhHeart, PhChartBar } from '@
 
 const auth = useAuthStore()
 
-const stats = [
-  { label: '发帖数', value: '—', icon: PhNote, color: '#9b8ec4' },
-  { label: '回复数', value: '—', icon: PhChatCircle, color: '#7ba4d4' },
-  { label: '获赞数', value: '—', icon: PhHeart, color: '#c47a99' },
-]
+const stats = computed(() => [
+  { label: '发帖数', value: auth.user?.post_count ?? '—', icon: PhNote, color: '#9b8ec4' },
+  { label: '回复数', value: auth.user?.comment_count ?? '—', icon: PhChatCircle, color: '#7ba4d4' },
+  { label: '获赞数', value: auth.user?.like_count ?? '—', icon: PhHeart, color: '#c47a99' },
+])
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'

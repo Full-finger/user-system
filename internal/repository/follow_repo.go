@@ -14,6 +14,7 @@ type FollowRepository interface {
 	FindFollowers(ctx context.Context, userID uint, page, size int) ([]model.Follow, int64, error)
 	FindFollowings(ctx context.Context, userID uint, page, size int) ([]model.Follow, int64, error)
 	FollowingIDs(ctx context.Context, userID uint) ([]uint, error)
+	FollowerIDs(ctx context.Context, userID uint) ([]uint, error)
 	CountFollowers(ctx context.Context, userID uint) (int64, error)
 	CountFollowings(ctx context.Context, userID uint) (int64, error)
 	FindFollowedUserIDs(ctx context.Context, followerID uint, userIDs []uint) (map[uint]bool, error)

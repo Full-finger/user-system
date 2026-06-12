@@ -30,4 +30,8 @@ type UserRepository interface {
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	ExistsByRole(ctx context.Context, role int) (bool, error)
+	// FindByIDs 按 ID 列表批量查询用户。
+	FindByIDs(ctx context.Context, ids []uint) ([]model.User, error)
+	// FindByRoleGTE 查询角色 >= minRole 的所有用户。
+	FindByRoleGTE(ctx context.Context, minRole int) ([]model.User, error)
 }

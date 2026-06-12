@@ -48,3 +48,12 @@ func (r *nodeModRepoGorm) FindByUserID(ctx context.Context, userID uint) ([]uint
 	}
 	return nodeIDs, nil
 }
+
+func (r *nodeModRepoGorm) FindUserIDsByNodeID(ctx context.Context, nodeID uint) ([]uint, error) {
+	var userIDs []uint
+	if err := r.db.WithContext(ctx).Model(&model.NodeModerator{}).
+		Where("node_id = ?", nodeID).Pluck("user_id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	return userIDs, nil
+}

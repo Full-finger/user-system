@@ -319,8 +319,12 @@ watch(() => route.params.username, fetchAll)
 .profile-header__name { font-size: 22px; margin-bottom: 4px; }
 .profile-header__meta { display: flex; align-items: center; gap: 10px; }
 
+.user-profile {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
 .profile__stats {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
 }
 .profile-stat {
   padding: 20px; text-align: center;

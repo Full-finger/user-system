@@ -70,6 +70,12 @@ const routes = [
         meta: { auth: true, admin: true }
       },
       {
+        path: 'create-post',
+        name: 'CreatePost',
+        component: () => import('../views/CreatePostView.vue'),
+        meta: { auth: true }
+      },
+      {
         path: 'settings',
         name: 'Settings',
         component: () => import('../views/SettingsView.vue'),

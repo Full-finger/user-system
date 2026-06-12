@@ -15,4 +15,5 @@ type CommentRepository interface {
 	CountByPostID(ctx context.Context, postID uint) (int64, error)
 	CountReplies(ctx context.Context, parentIDs []uint) (map[uint]int64, error)
 	FindCommentIDsByPostID(ctx context.Context, postID uint) ([]uint, error)
+	CountByUserID(ctx context.Context, userID uint) (int64, error)
 }

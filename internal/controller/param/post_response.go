@@ -8,6 +8,7 @@ import (
 type MentionResponse struct {
 	ID       uint   `json:"id"`
 	Username string `json:"username"`
+	Nickname string `json:"nickname,omitempty"`
 }
 
 // PostResponse 帖子响应。
@@ -68,6 +69,7 @@ func ToMentionResponse(m *model.Mention) MentionResponse {
 	return MentionResponse{
 		ID:       m.UserID,
 		Username: m.Username,
+		Nickname: m.User.Nickname,
 	}
 }
 

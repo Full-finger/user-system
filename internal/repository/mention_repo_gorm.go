@@ -24,7 +24,7 @@ func (r *mentionRepoGorm) CreateBatch(ctx context.Context, mentions []model.Ment
 
 func (r *mentionRepoGorm) FindByPostID(ctx context.Context, postID uint) ([]model.Mention, error) {
 	var mentions []model.Mention
-	if err := r.db.WithContext(ctx).Where("post_id = ? AND comment_id IS NULL", postID).Find(&mentions).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("User").Where("post_id = ? AND comment_id IS NULL", postID).Find(&mentions).Error; err != nil {
 		return nil, err
 	}
 	return mentions, nil
@@ -36,7 +36,7 @@ func (r *mentionRepoGorm) FindByCommentIDs(ctx context.Context, commentIDs []uin
 		return result, nil
 	}
 	var mentions []model.Mention
-	if err := r.db.WithContext(ctx).Where("comment_id IN ?", commentIDs).Find(&mentions).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("User").Where("comment_id IN ?", commentIDs).Find(&mentions).Error; err != nil {
 		return nil, err
 	}
 	for _, m := range mentions {

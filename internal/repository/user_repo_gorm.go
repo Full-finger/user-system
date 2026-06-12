@@ -96,3 +96,22 @@ func (r *userRepoGorm) ExistsByRole(ctx context.Context, role int) (bool, error)
 	}
 	return count > 0, nil
 }
+
+func (r *userRepoGorm) FindByIDs(ctx context.Context, ids []uint) ([]model.User, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var users []model.User
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (r *userRepoGorm) FindByRoleGTE(ctx context.Context, minRole int) ([]model.User, error) {
+	var users []model.User
+	if err := r.db.WithContext(ctx).Where("role >= ?", minRole).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}

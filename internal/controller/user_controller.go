@@ -10,6 +10,7 @@ import (
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/controller/param"
+	"github.com/full-finger/user-system/internal/repository"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -18,13 +19,16 @@ var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 // UserController 用户相关接口的处理器。
 type UserController struct {
-	svc        *service.UserService
-	captchaSvc *service.CaptchaService
-	guestCfg   *config.GuestJWTConfig
+	svc         *service.UserService
+	captchaSvc  *service.CaptchaService
+	guestCfg    *config.GuestJWTConfig
+	postRepo    repository.PostRepository
+	commentRepo repository.CommentRepository
+	likeRepo    repository.LikeRepository
 }
 
-func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig) *UserController {
-	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg}
+func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig, postRepo repository.PostRepository, commentRepo repository.CommentRepository, likeRepo repository.LikeRepository) *UserController {
+	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg, postRepo: postRepo, commentRepo: commentRepo, likeRepo: likeRepo}
 }
 
 func success(c echo.Context, data any) error {
@@ -97,7 +101,11 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToUserResponse(user))
+	ctx := c.Request().Context()
+	postCount, _ := ctrl.postRepo.CountByUserID(ctx, user.ID)
+	commentCount, _ := ctrl.commentRepo.CountByUserID(ctx, user.ID)
+	likeCount, _ := ctrl.likeRepo.CountReceivedLikesByUserID(ctx, user.ID)
+	return success(c, param.ToUserResponseWithStats(user, postCount, commentCount, likeCount))
 }
 
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {

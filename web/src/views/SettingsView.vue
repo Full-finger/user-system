@@ -98,6 +98,28 @@
             </div>
           </div>
         </div>
+
+        <!-- ====== 危险操作 ====== -->
+        <div class="settings__panel--danger-wrap" style="margin-top: 16px">
+          <h2 class="font-display settings__section-title" style="color: #c47878; padding-top: 16px">
+            <PhWarning :size="16" />
+            危险操作
+          </h2>
+          <div class="settings__rows">
+            <div class="settings__row">
+              <div class="settings__row-label">
+                <span>注销账号</span>
+                <span class="settings__row-hint">永久删除你的账号和数据，不可恢复</span>
+              </div>
+              <div class="settings__row-control settings__row-control--end">
+                <button class="btn btn--danger btn--sm" disabled>
+                  <PhTrash :size="14" />
+                  注销账号
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ====== 外观 Tab ====== -->
@@ -126,27 +148,30 @@
         </div>
       </div>
 
-      <!-- ====== 危险操作 ====== -->
-      <div class="card settings__panel settings__panel--danger">
-        <h2 class="font-display settings__section-title" style="color: #c47878">
-          <PhWarning :size="16" />
-          危险操作
-        </h2>
-        <div class="settings__rows">
-          <div class="settings__row">
+      <!-- ====== @提及 Tab ====== -->
+      <div v-show="activeTab === 'mention'" class="card settings__panel">
+        <div class="settings__section-title" style="padding-top: 20px; padding-left: 24px; padding-right: 24px">
+          @提及补全来源
+        </div>
+        <p class="text-3" style="font-size: 13px; padding: 8px 24px 0; color: var(--text-3)">
+          选择在输入 @ 时，哪些用户会出现在补全候选列表中。
+        </p>
+        <div class="settings__rows" style="margin-top: 8px">
+          <div v-for="src in mentionSources" :key="src.key" class="settings__row">
             <div class="settings__row-label">
-              <span>注销账号</span>
-              <span class="settings__row-hint">永久删除你的账号和数据，不可恢复</span>
+              <span>{{ src.label }}</span>
+              <span class="settings__row-hint">{{ src.desc }}</span>
             </div>
             <div class="settings__row-control settings__row-control--end">
-              <button class="btn btn--danger btn--sm" disabled>
-                <PhTrash :size="14" />
-                注销账号
-              </button>
+              <label class="settings__toggle">
+                <input type="checkbox" :checked="src.enabled" @change="toggleMentionSource(src.key)" />
+                <span class="settings__toggle-slider"></span>
+              </label>
             </div>
           </div>
         </div>
       </div>
+
     </template>
 
     <!-- ====== Password Modal ====== -->
@@ -243,7 +268,7 @@ import { updateProfile, bindEmail, sendCode } from '../api'
 import {
   PhUser, PhKey, PhEnvelopeSimple, PhPalette, PhWarning, PhTrash,
   PhXCircle, PhCheckCircle, PhCircleNotch, PhSun, PhMoon, PhDesktop,
-  PhWarningCircle, PhX
+  PhWarningCircle, PhX, PhAt
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
@@ -256,6 +281,7 @@ const tabs = [
   { key: 'profile', label: '资料', icon: PhUser },
   { key: 'security', label: '安全', icon: PhKey },
   { key: 'appearance', label: '外观', icon: PhPalette },
+  { key: 'mention', label: '提及', icon: PhAt },
 ]
 
 // ---- Theme ----
@@ -387,6 +413,30 @@ async function handleBindEmail() {
     closeEmailModal()
   } catch (e) { emailError.value = e.message }
   finally { emailLoading.value = false }
+}
+
+// ---- Mention Settings ----
+const allMentionSourceDefs = [
+  { key: 'following', label: '我关注的人', desc: '你关注的用户' },
+  { key: 'followers', label: '我的粉丝', desc: '关注了你的用户' },
+  { key: 'admins', label: '管理员', desc: '管理员和超级管理员' },
+  { key: 'moderators', label: '版主', desc: '当前节点的版主（仅发帖时）' },
+]
+
+function getMentionSourceKeys() {
+  const raw = localStorage.getItem('mention_sources') || 'following,followers,admins,moderators'
+  return new Set(raw.split(',').filter(Boolean))
+}
+
+const mentionSources = ref(
+  allMentionSourceDefs.map(def => ({ ...def, enabled: getMentionSourceKeys().has(def.key) }))
+)
+
+function toggleMentionSource(key) {
+  const src = mentionSources.value.find(s => s.key === key)
+  if (src) src.enabled = !src.enabled
+  const enabled = mentionSources.value.filter(s => s.enabled).map(s => s.key)
+  localStorage.setItem('mention_sources', enabled.join(',') || 'following')
 }
 </script>
 
@@ -634,9 +684,53 @@ async function handleBindEmail() {
   background: var(--accent-light);
 }
 
+/* ---- Toggle switch ---- */
+.settings__toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.settings__toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.settings__toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 12px;
+  transition: background var(--duration-medium-1) var(--ease-standard);
+}
+
+.settings__toggle-slider::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 18px;
+  height: 18px;
+  background: var(--text-1);
+  border-radius: 50%;
+  transition: transform var(--duration-medium-1) var(--ease-standard);
+}
+
+.settings__toggle input:checked + .settings__toggle-slider {
+  background: var(--accent);
+}
+
+.settings__toggle input:checked + .settings__toggle-slider::before {
+  transform: translateX(20px);
+}
+
 /* ---- Danger panel ---- */
-.settings__panel--danger {
-  border: 1px solid rgba(196, 120, 120, 0.2);
+.settings__panel--danger-wrap {
+  border-top: 1px solid rgba(196, 120, 120, 0.2);
+  border-radius: 0;
 }
 
 /* ---- Responsive ---- */

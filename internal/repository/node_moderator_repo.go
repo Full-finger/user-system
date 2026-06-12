@@ -8,6 +8,8 @@ type NodeModeratorRepository interface {
 	CreateBatch(ctx context.Context, mods []NodeModeratorCreate) error
 	DeleteByUserID(ctx context.Context, userID uint) error
 	FindByUserID(ctx context.Context, userID uint) ([]uint, error)
+	// FindUserIDsByNodeID 返回指定节点的所有版主用户 ID。
+	FindUserIDsByNodeID(ctx context.Context, nodeID uint) ([]uint, error)
 }
 
 // NodeModeratorCreate 创建版主绑定的参数。

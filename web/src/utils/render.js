@@ -9,7 +9,7 @@ export function renderContent(content, mentions) {
   const mentionMap = new Map()
   if (mentions?.length) {
     for (const m of mentions) {
-      mentionMap.set(m.username.toLowerCase(), m.username)
+      mentionMap.set(m.username.toLowerCase(), { username: m.username, nickname: m.nickname || m.username })
     }
   }
   return content
@@ -17,9 +17,9 @@ export function renderContent(content, mentions) {
     .replace(/</g, '\x26lt;')
     .replace(/>/g, '\x26gt;')
     .replace(/@([a-zA-Z0-9_]{3,30})/g, (match, name) => {
-      const actual = mentionMap.get(name.toLowerCase())
-      if (actual) {
-        return `<a href="/users/${actual}" class="mention-link" data-username="${actual}">@${name}</a>`
+      const info = mentionMap.get(name.toLowerCase())
+      if (info) {
+        return `<a href="/users/${info.username}" class="mention-link" data-username="${info.username}">@${info.nickname}</a>`
       }
       return match
     })

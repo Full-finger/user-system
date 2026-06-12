@@ -46,6 +46,16 @@ func (r *likeRepoGorm) FindByUserID(ctx context.Context, userID uint, page, size
 	return likes, total, nil
 }
 
+func (r *likeRepoGorm) CountReceivedLikesByUserID(ctx context.Context, userID uint) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Like{}).
+		Joins("JOIN posts ON posts.id = likes.post_id").
+		Where("posts.user_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *likeRepoGorm) FindLikedPostIDs(ctx context.Context, userID uint, postIDs []uint) (map[uint]bool, error) {
 	result := make(map[uint]bool, len(postIDs))
 	if len(postIDs) == 0 {

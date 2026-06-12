@@ -7,12 +7,15 @@ import (
 
 // UserResponse 用户信息响应，脱敏密码。
 type UserResponse struct {
-	ID        uint   `json:"id"`
-	Username  string `json:"username"`
-	Nickname  string `json:"nickname"`
-	Email     string `json:"email,omitempty"`
-	Role      string `json:"role"`
-	CreatedAt string `json:"created_at"`
+	ID           uint   `json:"id"`
+	Username     string `json:"username"`
+	Nickname     string `json:"nickname"`
+	Email        string `json:"email,omitempty"`
+	Role         string `json:"role"`
+	CreatedAt    string `json:"created_at"`
+	PostCount    int64  `json:"post_count,omitempty"`
+	CommentCount int64  `json:"comment_count,omitempty"`
+	LikeCount    int64  `json:"like_count,omitempty"`
 }
 
 // UserListResponse 分页用户列表响应。
@@ -35,6 +38,15 @@ func ToUserResponse(u *model.User) UserResponse {
 	if u.Email != nil {
 		r.Email = *u.Email
 	}
+	return r
+}
+
+// ToUserResponseWithStats 将用户信息+统计数据转为 API 响应。
+func ToUserResponseWithStats(u *model.User, postCount, commentCount, likeCount int64) UserResponse {
+	r := ToUserResponse(u)
+	r.PostCount = postCount
+	r.CommentCount = commentCount
+	r.LikeCount = likeCount
 	return r
 }
 
