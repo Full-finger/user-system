@@ -28,7 +28,7 @@ func initDB(cfg *config.Config, log *zap.Logger) (*gorm.DB, error) {
 		return nil, err
 	}
 	if cfg.Server.Env != "production" {
-		db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{}, &model.NodeModerator{})
+		db.AutoMigrate(&model.User{}, &model.Post{}, &model.Like{}, &model.Follow{}, &model.Node{}, &model.Mention{}, &model.NodeModerator{}, &model.Comment{}, &model.CommentLike{})
 	} else {
 		log.Warn("生产环境跳过 AutoMigrate，请使用迁移工具管理数据库结构")
 	}
@@ -63,6 +63,8 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	nodeRepo := repository.NewNodeRepository(db)
 	nodeModRepo := repository.NewNodeModeratorRepository(db)
 	mentionRepo := repository.NewMentionRepository(db)
+	commentRepo := repository.NewCommentRepository(db)
+	commentLikeRepo := repository.NewCommentLikeRepository(db)
 
 	userSvc := service.NewUserService(userRepo, nodeModRepo, &cfg.JWT, log)
 	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer, log)
@@ -70,6 +72,7 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	likeSvc := service.NewLikeService(likeRepo, log)
 	postSvc := service.NewPostService(postRepo, likeRepo, likeSvc, nodeRepo, nodeModRepo, nodeSvc, db, log)
 	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
+	commentSvc := service.NewCommentService(commentRepo, commentLikeRepo, postRepo, mentionRepo, nodeSvc, db, log)
 
 	// 种子数据
 	nodeSvc.SeedNodes(context.Background())
@@ -79,6 +82,7 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, log)
 	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc)
 	followCtrl := controller.NewFollowController(followSvc)
+	commentCtrl := controller.NewCommentController(commentSvc, log)
 
 	// --- Echo 配置 ---
 	e.Validator = validator.New()
@@ -110,5 +114,5 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	router.Setup(e, userCtrl, postCtrl, nodeCtrl, followCtrl, cfg, rdb)
+	router.Setup(e, userCtrl, postCtrl, nodeCtrl, followCtrl, commentCtrl, cfg, rdb)
 }

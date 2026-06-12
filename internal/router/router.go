@@ -11,7 +11,7 @@ import (
 )
 
 // Setup 注册所有 API 路由，统一走 AuthMiddleware + 限流，权限判断下沉到 Service 层。
-func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, cfg *config.Config, rdb *redis.Client) {
+func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controller.PostController, nodeCtrl *controller.NodeController, followCtrl *controller.FollowController, commentCtrl *controller.CommentController, cfg *config.Config, rdb *redis.Client) {
 	e.GET("/health", func(c echo.Context) error {
 		return c.JSON(http.StatusOK, map[string]string{"status": "ok"})
 	})
@@ -34,6 +34,8 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.GET("/nodes/:id/posts", nodeCtrl.ListNodePosts)
 	api.GET("/posts", postCtrl.ListPosts)
 	api.GET("/posts/:code", postCtrl.GetPost)
+	api.GET("/posts/:code/comments", commentCtrl.ListComments)
+	api.GET("/comments/:id/replies", commentCtrl.ListReplies)
 	api.GET("/users/:username/posts", postCtrl.ListUserPosts)
 	api.GET("/users/:username/likes", postCtrl.ListLikedPosts)
 	api.GET("/users/:username/followers", followCtrl.GetFollowers)
@@ -47,6 +49,8 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.POST("/posts", postCtrl.CreatePost)
 	api.DELETE("/posts/:code", postCtrl.DeletePost)
 	api.PUT("/posts/:code/like", postCtrl.ToggleLike)
+	api.POST("/posts/:code/comments", commentCtrl.CreateComment)
+	api.PUT("/comments/:id/like", commentCtrl.ToggleCommentLike)
 	api.GET("/feed", postCtrl.ListFeed)
 	api.PUT("/users/:username/follow", followCtrl.ToggleFollow)
 

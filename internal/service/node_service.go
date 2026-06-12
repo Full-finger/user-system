@@ -78,12 +78,20 @@ var mentionRegex = regexp.MustCompile(`@([a-zA-Z0-9_]{3,30})`)
 
 // ParseAndSaveMentions 解析帖子内容中的 @username，查找对应用户并批量保存。
 func (s *NodeService) ParseAndSaveMentions(ctx context.Context, postID uint, content string) {
+	s.parseAndSaveMentions(ctx, postID, nil, content)
+}
+
+// ParseAndSaveCommentMentions 解析评论内容中的 @username，查找对应用户并批量保存。
+func (s *NodeService) ParseAndSaveCommentMentions(ctx context.Context, postID, commentID uint, content string) {
+	s.parseAndSaveMentions(ctx, postID, &commentID, content)
+}
+
+func (s *NodeService) parseAndSaveMentions(ctx context.Context, postID uint, commentID *uint, content string) {
 	usernames := extractMentions(content)
 	if len(usernames) == 0 {
 		return
 	}
 
-	// 去重
 	seen := make(map[string]bool)
 	var unique []string
 	for _, u := range usernames {
@@ -97,12 +105,13 @@ func (s *NodeService) ParseAndSaveMentions(ctx context.Context, postID uint, con
 	for _, name := range unique {
 		user, err := s.userRepo.FindByUsername(ctx, name)
 		if err != nil {
-			continue // 用户不存在就跳过
+			continue
 		}
 		mentions = append(mentions, model.Mention{
-			PostID:   postID,
-			UserID:   user.ID,
-			Username: user.Username,
+			PostID:    postID,
+			CommentID: commentID,
+			UserID:    user.ID,
+			Username:  user.Username,
 		})
 	}
 	if err := s.mentionRepo.CreateBatch(ctx, mentions); err != nil {

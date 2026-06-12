@@ -18,6 +18,7 @@ tags:
   - name: 帖子
   - name: 节点
   - name: 关注
+  - name: 评论
   - name: 管理员
 
 paths:
@@ -616,6 +617,126 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  # ── 评论 ──────────────────────────────────────────────
+  /api/posts/{code}/comments:
+    get:
+      tags: [评论]
+      summary: 获取帖子的评论列表
+      description: 可选鉴权，带 token 时返回 liked 状态。返回顶级评论，附带前 N 条回复预览。
+      security:
+        - BearerToken: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/PostCode"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: reply_preview_size
+          in: query
+          description: 每条评论附带的前几条回复数量（默认 3，最大 10）
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CommentListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [评论]
+      summary: 创建评论或回复
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+      parameters:
+        - $ref: "#/components/parameters/PostCode"
+      responses:
+        "200":
+          description: 评论成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CommentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/comments/{id}/replies:
+    get:
+      tags: [评论]
+      summary: 获取某评论的回复列表
+      description: 可选鉴权，带 token 时返回 liked 状态。
+      security:
+        - BearerToken: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/CommentId"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CommentListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/comments/{id}/like:
+    put:
+      tags: [评论]
+      summary: 评论点赞/取消点赞
+      parameters:
+        - $ref: "#/components/parameters/CommentId"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          liked:
+                            type: boolean
+                            example: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ── 管理员 ────────────────────────────────────────────
   /api/admin/users:
     get:
@@ -807,6 +928,14 @@ components:
       schema:
         type: integer
       description: 节点 ID
+
+    CommentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: 评论 ID
 
   schemas:
     ApiResponse:
@@ -1240,6 +1369,88 @@ components:
         username:
           type: string
           example: lisi
+
+    # ── Comment ─────────────────────────────────────────
+    CreateCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: "这是一条评论"
+        parent_id:
+          type: integer
+          nullable: true
+          description: 父评论 ID（回复时传入）
+          example: null
+
+    CommentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        content:
+          type: string
+          example: "这是一条评论"
+        user:
+          $ref: "#/components/schemas/UserResponse"
+        reply_to:
+          type: object
+          nullable: true
+          description: 回复目标用户（楼中楼回复时有值）
+          properties:
+            id:
+              type: integer
+              example: 2
+            username:
+              type: string
+              example: lisi
+            nickname:
+              type: string
+              example: 李四
+        like_count:
+          type: integer
+          example: 3
+        reply_count:
+          type: integer
+          description: 该评论的回复总数
+          example: 2
+        replies:
+          type: array
+          description: 回复预览（列表接口附带前 N 条）
+          items:
+            $ref: "#/components/schemas/CommentResponse"
+        liked:
+          type: boolean
+          example: false
+        mentions:
+          type: array
+          items:
+            $ref: "#/components/schemas/MentionResponse"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T00:00:00+08:00"
+
+    CommentListResponse:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommentResponse"
+        total:
+          type: integer
+          example: 50
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 20
 
   responses:
     BadRequest:

@@ -151,6 +151,23 @@ export function listUserLikes(username, params) {
   return api.get(`/users/${username}/likes`, { params })
 }
 
+// ---- Comments ----
+export function listComments(postCode, params) {
+  return api.get(`/posts/${postCode}/comments`, { params })
+}
+
+export function createComment(postCode, data) {
+  return api.post(`/posts/${postCode}/comments`, data)
+}
+
+export function listReplies(commentId, params) {
+  return api.get(`/comments/${commentId}/replies`, { params })
+}
+
+export function toggleCommentLike(commentId) {
+  return api.put(`/comments/${commentId}/like`)
+}
+
 // ---- Follow ----
 export function toggleFollow(username) {
   return api.put(`/users/${username}/follow`)
