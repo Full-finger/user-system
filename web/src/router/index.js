@@ -90,8 +90,13 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const auth = useAuthStore()
+
+  // 等待 auth 初始化完成（首次加载时 fetchProfile 可能尚未完成）
+  if (auth.isLoggedIn && !auth.user) {
+    await auth.initPromise
+  }
 
   if (to.meta.auth && !auth.isLoggedIn) {
     return next({ name: 'Login', query: { redirect: to.fullPath } })

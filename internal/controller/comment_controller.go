@@ -123,3 +123,37 @@ func (ctrl *CommentController) ToggleCommentLike(c echo.Context) error {
 	}
 	return success(c, map[string]bool{"liked": liked})
 }
+
+// AdminListComments 管理员评论列表（支持搜索）。
+func (ctrl *CommentController) AdminListComments(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	page, size := parsePage(c)
+	keyword := c.QueryParam("keyword")
+	comments, total, err := ctrl.commentSvc.AdminListComments(c.Request().Context(), uc, keyword, page, size)
+	if err != nil {
+		return err
+	}
+	list := make([]param.CommentResponse, 0, len(comments))
+	for i := range comments {
+		list = append(list, param.ToCommentResponse(&comments[i], nil, nil))
+	}
+	return success(c, param.CommentListResponse{
+		List:     list,
+		Total:    total,
+		Page:     page,
+		PageSize: size,
+	})
+}
+
+// AdminDeleteComment 管理员删除评论。
+func (ctrl *CommentController) AdminDeleteComment(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		return apperror.BadRequest("无效的评论 ID")
+	}
+	if err := ctrl.commentSvc.AdminDeleteComment(c.Request().Context(), uc, uint(id)); err != nil {
+		return err
+	}
+	return success(c, nil)
+}

@@ -56,10 +56,17 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.GET("/mention-cache", mentionCtrl.GetMentionCache)
 
 	// 管理（Service 层 RequireRole(Admin/SuperAdmin)）
+	api.GET("/admin/stats", userCtrl.AdminStats)
 	api.GET("/admin/users", userCtrl.ListUsers)
 	api.GET("/admin/users/:id", userCtrl.GetUser)
 	api.PUT("/admin/users/:id", userCtrl.UpdateUser)
 	api.DELETE("/admin/users/:id", userCtrl.DeleteUser)
 	api.POST("/admin/moderators", userCtrl.AppointModerator)
+	api.GET("/admin/posts", postCtrl.AdminListPosts)
 	api.DELETE("/admin/posts/:code", postCtrl.AdminDeletePost)
+	api.GET("/admin/comments", commentCtrl.AdminListComments)
+	api.DELETE("/admin/comments/:id", commentCtrl.AdminDeleteComment)
+	api.POST("/admin/nodes", nodeCtrl.CreateNode)
+	api.PUT("/admin/nodes/:id", nodeCtrl.UpdateNode)
+	api.DELETE("/admin/nodes/:id", nodeCtrl.DeleteNode)
 }

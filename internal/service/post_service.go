@@ -243,6 +243,24 @@ func (s *PostService) ToggleLike(ctx context.Context, uc *auth.UserContext, code
 	return true, nil
 }
 
+// AdminListPosts 管理员帖子列表（支持搜索和节点筛选）。
+func (s *PostService) AdminListPosts(ctx context.Context, uc *auth.UserContext, keyword string, nodeID uint, page, size int) ([]model.Post, int64, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, 0, err
+	}
+	posts, total, err := s.postRepo.FindAdminPage(ctx, keyword, nodeID, page, size)
+	if err != nil {
+		s.log.Error("管理员查询帖子列表失败", zap.Error(err))
+		return nil, 0, apperror.Internal("查询失败")
+	}
+	return posts, total, nil
+}
+
+// CountPosts 返回帖子总数。
+func (s *PostService) CountPosts(ctx context.Context) (int64, error) {
+	return s.postRepo.Count(ctx)
+}
+
 // AdminDeletePost 管理员/版主删帖：Moderator 及以上，版主需管辖该节点。
 func (s *PostService) AdminDeletePost(ctx context.Context, uc *auth.UserContext, code string) error {
 	if err := uc.RequireRole(auth.RoleModerator); err != nil {

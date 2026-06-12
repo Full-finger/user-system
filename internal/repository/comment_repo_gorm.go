@@ -95,6 +95,36 @@ func (r *commentRepoGorm) CountByUserID(ctx context.Context, userID uint) (int64
 	return count, nil
 }
 
+func (r *commentRepoGorm) FindPage(ctx context.Context, keyword string, page, size int) ([]model.Comment, int64, error) {
+	var comments []model.Comment
+	var total int64
+	db := r.db.WithContext(ctx)
+	if keyword != "" {
+		db = db.Where("content ILIKE ?", "%"+keyword+"%")
+	}
+	if err := db.Model(&model.Comment{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * size
+	if err := db.Preload("User").Preload("ReplyTo").
+		Order("created_at DESC").Offset(offset).Limit(size).Find(&comments).Error; err != nil {
+		return nil, 0, err
+	}
+	return comments, total, nil
+}
+
+func (r *commentRepoGorm) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&model.Comment{}, id).Error
+}
+
+func (r *commentRepoGorm) Count(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Comment{}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *commentRepoGorm) FindCommentIDsByPostID(ctx context.Context, postID uint) ([]uint, error) {
 	var ids []uint
 	if err := r.db.WithContext(ctx).Model(&model.Comment{}).Where("post_id = ?", postID).Pluck("id", &ids).Error; err != nil {

@@ -105,7 +105,7 @@
 
     <!-- Main -->
     <main class="main-content">
-      <div class="main-content__inner">
+      <div class="main-content__inner" :class="{ 'main-content__inner--wide': isAdminPage }">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
             <component :is="Component" />
@@ -154,10 +154,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { siteConfig } from '../config/site'
 
 import {
@@ -170,8 +170,10 @@ import {
 const auth = useAuthStore()
 const theme = useThemeStore()
 const router = useRouter()
+const route = useRoute()
 const sidebarOpen = ref(false)
 const searchQuery = ref('')
+const isAdminPage = computed(() => route.meta.admin)
 
 const toast = reactive({ show: false, message: '', type: 'info' })
 
@@ -476,6 +478,10 @@ function showToast(message, type = 'success') {
 .main-content__inner {
   flex: 1;
   padding: 24px;
+  max-width: 780px;
+}
+
+.main-content__inner--wide {
   max-width: 780px;
 }
 

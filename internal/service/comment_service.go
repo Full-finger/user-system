@@ -234,6 +234,49 @@ func (s *CommentService) GetCommentMentions(ctx context.Context, commentIDs []ui
 	return s.mentionRepo.FindByCommentIDs(ctx, commentIDs)
 }
 
+// AdminListComments 管理员评论列表（支持搜索）。
+func (s *CommentService) AdminListComments(ctx context.Context, uc *auth.UserContext, keyword string, page, size int) ([]model.Comment, int64, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, 0, err
+	}
+	comments, total, err := s.commentRepo.FindPage(ctx, keyword, page, size)
+	if err != nil {
+		s.log.Error("管理员查询评论列表失败", zap.Error(err))
+		return nil, 0, apperror.Internal("查询失败")
+	}
+	return comments, total, nil
+}
+
+// AdminDeleteComment 管理员删除评论。
+func (s *CommentService) AdminDeleteComment(ctx context.Context, uc *auth.UserContext, id uint) error {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return err
+	}
+	comment, err := s.commentRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("评论不存在")
+		}
+		return apperror.Internal("查询失败")
+	}
+	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&model.Comment{}, id).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.Post{}).Where("id = ? AND reply_count > 0", comment.PostID).
+			UpdateColumn("reply_count", gorm.Expr("reply_count - 1")).Error
+	}); err != nil {
+		s.log.Error("管理员删除评论事务失败", zap.Error(err))
+		return apperror.Internal("删除评论失败")
+	}
+	return nil
+}
+
+// CountComments 返回评论总数。
+func (s *CommentService) CountComments(ctx context.Context) (int64, error) {
+	return s.commentRepo.Count(ctx)
+}
+
 func (s *CommentService) buildLikedMap(ctx context.Context, uc *auth.UserContext, ids []uint) map[uint]bool {
 	if uc.IsGuest() || len(ids) == 0 {
 		return nil

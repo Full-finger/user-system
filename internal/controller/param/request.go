@@ -52,3 +52,23 @@ type CreatePostRequest struct {
 	Title   string `json:"title" validate:"required,min=1,max=200"`
 	Content string `json:"content" validate:"required,min=1"`
 }
+
+// CreateNodeRequest 创建节点请求。
+type CreateNodeRequest struct {
+	Name      string `json:"name" validate:"required,min=1,max=50"`
+	Slug      string `json:"slug" validate:"required,min=1,max=50"`
+	Desc      string `json:"desc" validate:"omitempty,max=200"`
+	Color     string `json:"color" validate:"omitempty,len=7"`
+	Icon      string `json:"icon" validate:"omitempty,max=50"`
+	SortOrder int    `json:"sort_order"`
+}
+
+// UpdateNodeRequest 更新节点请求，所有字段可选。
+type UpdateNodeRequest struct {
+	Name      *string `json:"name" validate:"omitempty,min=1,max=50"`
+	Slug      *string `json:"slug" validate:"omitempty,min=1,max=50"`
+	Desc      *string `json:"desc" validate:"omitempty,max=200"`
+	Color     *string `json:"color" validate:"omitempty,len=7"`
+	Icon      *string `json:"icon" validate:"omitempty,max=50"`
+	SortOrder *int    `json:"sort_order"`
+}

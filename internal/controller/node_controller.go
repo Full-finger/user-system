@@ -61,3 +61,48 @@ func (ctrl *NodeController) ListNodePosts(c echo.Context) error {
 	}
 	return success(c, param.ToPostListResponse(posts, total, page, size, likedMap))
 }
+
+// CreateNode 管理员创建节点。
+func (ctrl *NodeController) CreateNode(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	var req param.CreateNodeRequest
+	if err := param.BindAndValidate(c, &req); err != nil {
+		return err
+	}
+	node, err := ctrl.nodeSvc.CreateNode(c.Request().Context(), uc, req.Name, req.Slug, req.Desc, req.Color, req.Icon, req.SortOrder)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToNodeResponse(node))
+}
+
+// UpdateNode 管理员更新节点。
+func (ctrl *NodeController) UpdateNode(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return apperror.BadRequest("无效的节点ID")
+	}
+	var req param.UpdateNodeRequest
+	if err := c.Bind(&req); err != nil {
+		return apperror.BadRequest("请求参数错误")
+	}
+	node, err := ctrl.nodeSvc.UpdateNode(c.Request().Context(), uc, uint(id), req.Name, req.Slug, req.Desc, req.Color, req.Icon, req.SortOrder)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToNodeResponse(node))
+}
+
+// DeleteNode 管理员删除节点。
+func (ctrl *NodeController) DeleteNode(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return apperror.BadRequest("无效的节点ID")
+	}
+	if err := ctrl.nodeSvc.DeleteNode(c.Request().Context(), uc, uint(id)); err != nil {
+		return err
+	}
+	return success(c, nil)
+}

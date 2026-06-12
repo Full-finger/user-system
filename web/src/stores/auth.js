@@ -47,9 +47,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   // 初始化时拉取 profile
+  let initPromise = Promise.resolve()
   if (token.value) {
-    fetchProfile()
+    initPromise = fetchProfile()
   }
 
-  return { token, user, isLoggedIn, isAdmin, canManagePosts, login, loginByCode, register, fetchProfile, logout }
+  return { token, user, isLoggedIn, isAdmin, canManagePosts, login, loginByCode, register, fetchProfile, logout, initPromise }
 })

@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"strconv"
+
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
@@ -119,6 +121,24 @@ func (ctrl *PostController) ToggleLike(c echo.Context) error {
 		return err
 	}
 	return success(c, map[string]bool{"liked": liked})
+}
+
+// AdminListPosts 管理员帖子列表（支持搜索和节点筛选）。
+func (ctrl *PostController) AdminListPosts(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	page, size := parsePage(c)
+	keyword := c.QueryParam("keyword")
+	var nodeID uint
+	if nidStr := c.QueryParam("node_id"); nidStr != "" {
+		if nid, err := strconv.ParseUint(nidStr, 10, 64); err == nil {
+			nodeID = uint(nid)
+		}
+	}
+	posts, total, err := ctrl.postSvc.AdminListPosts(c.Request().Context(), uc, keyword, nodeID, page, size)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToPostListResponse(posts, total, page, size, nil))
 }
 
 // AdminDeletePost 管理员/版主删帖。

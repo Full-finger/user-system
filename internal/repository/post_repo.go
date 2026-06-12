@@ -14,8 +14,10 @@ type PostRepository interface {
 	Delete(ctx context.Context, id uint) error
 	FindByUserID(ctx context.Context, userID uint, page, size int) ([]model.Post, int64, error)
 	FindPage(ctx context.Context, page, size int) ([]model.Post, int64, error)
+	FindAdminPage(ctx context.Context, keyword string, nodeID uint, page, size int) ([]model.Post, int64, error)
 	FindByNodeID(ctx context.Context, nodeID uint, page, size int, sort string) ([]model.Post, int64, error)
 	FindByUserIDs(ctx context.Context, userIDs []uint, page, size int) ([]model.Post, int64, error)
+	Count(ctx context.Context) (int64, error)
 	CountByUserID(ctx context.Context, userID uint) (int64, error)
 	IncrLikeCount(ctx context.Context, id uint) error
 	DecrLikeCount(ctx context.Context, id uint) error

@@ -25,10 +25,11 @@ type UserController struct {
 	postRepo    repository.PostRepository
 	commentRepo repository.CommentRepository
 	likeRepo    repository.LikeRepository
+	nodeRepo    repository.NodeRepository
 }
 
-func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig, postRepo repository.PostRepository, commentRepo repository.CommentRepository, likeRepo repository.LikeRepository) *UserController {
-	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg, postRepo: postRepo, commentRepo: commentRepo, likeRepo: likeRepo}
+func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig, postRepo repository.PostRepository, commentRepo repository.CommentRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository) *UserController {
+	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg, postRepo: postRepo, commentRepo: commentRepo, likeRepo: likeRepo, nodeRepo: nodeRepo}
 }
 
 func success(c echo.Context, data any) error {
@@ -217,6 +218,25 @@ func (ctrl *UserController) AppointModerator(c echo.Context) error {
 		return err
 	}
 	return success(c, param.ToUserResponse(user))
+}
+
+// AdminStats 返回管理后台统计概览。
+func (ctrl *UserController) AdminStats(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		_ = err
+	}
+	ctx := c.Request().Context()
+	userCount, _ := ctrl.svc.Count(ctx)
+	postCount, _ := ctrl.postRepo.Count(ctx)
+	commentCount, _ := ctrl.commentRepo.Count(ctx)
+	nodeCount, _ := ctrl.nodeRepo.Count(ctx)
+	return success(c, param.AdminStatsResponse{
+		UserCount:    userCount,
+		PostCount:    postCount,
+		CommentCount: commentCount,
+		NodeCount:    nodeCount,
+	})
 }
 
 func (ctrl *UserController) BindEmail(c echo.Context) error {

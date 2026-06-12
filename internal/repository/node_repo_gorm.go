@@ -48,6 +48,22 @@ func (r *nodeRepoGorm) IncrPostCount(ctx context.Context, id uint) error {
 		UpdateColumn("post_count", gorm.Expr("post_count + 1")).Error
 }
 
+func (r *nodeRepoGorm) Update(ctx context.Context, id uint, upd NodeUpdate) error {
+	return r.db.WithContext(ctx).Model(&model.Node{}).Where("id = ?", id).Updates(upd).Error
+}
+
+func (r *nodeRepoGorm) Delete(ctx context.Context, id uint) error {
+	return r.db.WithContext(ctx).Delete(&model.Node{}, id).Error
+}
+
+func (r *nodeRepoGorm) Count(ctx context.Context) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).Model(&model.Node{}).Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *nodeRepoGorm) DecrPostCount(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&model.Node{}).Where("id = ? AND post_count > 0", id).
 		UpdateColumn("post_count", gorm.Expr("post_count - 1")).Error

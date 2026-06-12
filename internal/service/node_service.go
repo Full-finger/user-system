@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/model"
 	"github.com/full-finger/user-system/internal/repository"
 	"go.uber.org/zap"
@@ -46,6 +47,85 @@ func (s *NodeService) GetNode(ctx context.Context, id uint) (*model.Node, error)
 		return nil, apperror.Internal("查询失败")
 	}
 	return node, nil
+}
+
+// CreateNode 管理员创建节点。
+func (s *NodeService) CreateNode(ctx context.Context, uc *auth.UserContext, name, slug, desc, color, icon string, sortOrder int) (*model.Node, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, err
+	}
+	if name == "" || slug == "" {
+		return nil, apperror.BadRequest("节点名称和标识不能为空")
+	}
+	if _, err := s.nodeRepo.FindBySlug(ctx, slug); err == nil {
+		return nil, apperror.BadRequest("节点标识已存在")
+	}
+	node := &model.Node{
+		Name:      name,
+		Slug:      slug,
+		Desc:      desc,
+		Color:     color,
+		Icon:      icon,
+		SortOrder: sortOrder,
+	}
+	if err := s.nodeRepo.Create(ctx, node); err != nil {
+		s.log.Error("创建节点失败", zap.Error(err))
+		return nil, apperror.Internal("创建节点失败")
+	}
+	return node, nil
+}
+
+// UpdateNode 管理员更新节点。
+func (s *NodeService) UpdateNode(ctx context.Context, uc *auth.UserContext, id uint, name, slug, desc, color, icon *string, sortOrder *int) (*model.Node, error) {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return nil, err
+	}
+	if _, err := s.nodeRepo.FindByID(ctx, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperror.NotFound("节点不存在")
+		}
+		return nil, apperror.Internal("查询失败")
+	}
+	upd := repository.NodeUpdate{
+		Name:      name,
+		Slug:      slug,
+		Desc:      desc,
+		Color:     color,
+		Icon:      icon,
+		SortOrder: sortOrder,
+	}
+	if err := s.nodeRepo.Update(ctx, id, upd); err != nil {
+		s.log.Error("更新节点失败", zap.Error(err))
+		return nil, apperror.Internal("更新节点失败")
+	}
+	return s.nodeRepo.FindByID(ctx, id)
+}
+
+// DeleteNode 管理员删除节点（仅允许删除空节点）。
+func (s *NodeService) DeleteNode(ctx context.Context, uc *auth.UserContext, id uint) error {
+	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+		return err
+	}
+	node, err := s.nodeRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperror.NotFound("节点不存在")
+		}
+		return apperror.Internal("查询失败")
+	}
+	if node.PostCount > 0 {
+		return apperror.BadRequest("该节点下还有帖子，无法删除")
+	}
+	if err := s.nodeRepo.Delete(ctx, id); err != nil {
+		s.log.Error("删除节点失败", zap.Error(err))
+		return apperror.Internal("删除节点失败")
+	}
+	return nil
+}
+
+// CountNodes 返回节点总数。
+func (s *NodeService) CountNodes(ctx context.Context) (int64, error) {
+	return s.nodeRepo.Count(ctx)
 }
 
 // DefaultNodes 返回前端 ExploreView 对应的默认节点。

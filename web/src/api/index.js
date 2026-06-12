@@ -84,6 +84,10 @@ export function bindEmail(data) {
 }
 
 // ---- Admin ----
+export function adminStats() {
+  return api.get('/admin/stats')
+}
+
 export function listUsers(params) {
   return api.get('/admin/users', { params })
 }
@@ -98,6 +102,34 @@ export function updateUser(id, data) {
 
 export function deleteUser(id) {
   return api.delete(`/admin/users/${id}`)
+}
+
+export function adminListPosts(params) {
+  return api.get('/admin/posts', { params })
+}
+
+export function adminDeletePost(code) {
+  return api.delete(`/admin/posts/${code}`)
+}
+
+export function adminListComments(params) {
+  return api.get('/admin/comments', { params })
+}
+
+export function adminDeleteComment(id) {
+  return api.delete(`/admin/comments/${id}`)
+}
+
+export function createNode(data) {
+  return api.post('/admin/nodes', data)
+}
+
+export function updateNode(id, data) {
+  return api.put(`/admin/nodes/${id}`, data)
+}
+
+export function deleteNode(id) {
+  return api.delete(`/admin/nodes/${id}`)
 }
 
 // ---- Nodes ----

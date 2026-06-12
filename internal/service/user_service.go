@@ -29,6 +29,11 @@ func NewUserService(repo repository.UserRepository, nodeModRepo repository.NodeM
 	return &UserService{repo: repo, nodeModRepo: nodeModRepo, cfg: cfg, log: log}
 }
 
+// Count 返回用户总数。
+func (s *UserService) Count(ctx context.Context) (int64, error) {
+	return s.repo.Count(ctx)
+}
+
 func (s *UserService) CheckUsername(ctx context.Context, username string) error {
 	exists, err := s.repo.ExistsByUsername(ctx, username)
 	if err != nil {

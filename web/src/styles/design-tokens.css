@@ -76,7 +76,7 @@
 
   /* ---- 字体 ---- */
   --font-display: 'Outfit', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-body: 'DM Sans', 'Noto Color Emoji', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
