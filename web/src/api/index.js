@@ -184,6 +184,10 @@ export function listUserLikes(username, params) {
 }
 
 // ---- Comments ----
+export function getCommentChallenge() {
+  return api.get('/comment-challenge')
+}
+
 export function listComments(postCode, params) {
   return api.get(`/posts/${postCode}/comments`, { params })
 }

@@ -82,7 +82,7 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, log)
 	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc)
 	followCtrl := controller.NewFollowController(followSvc)
-	commentCtrl := controller.NewCommentController(commentSvc, log)
+	commentCtrl := controller.NewCommentController(commentSvc, rdb, log)
 	mentionCtrl := controller.NewMentionController(userRepo, followRepo, nodeModRepo)
 
 	// --- Echo 配置 ---

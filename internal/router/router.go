@@ -42,6 +42,9 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.GET("/users/:username/followings", followCtrl.GetFollowings)
 	api.GET("/users/:username", followCtrl.GetUserProfile)
 
+	// 评论反垃圾 challenge（公开，但需要 AuthMiddleware 识别身份）
+	api.GET("/comment-challenge", commentCtrl.GetChallenge)
+
 	// 需登录（Service 层 RequireRole(User)）
 	api.GET("/profile", userCtrl.GetProfile)
 	api.PUT("/profile", userCtrl.UpdateProfile)

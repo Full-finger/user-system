@@ -74,6 +74,15 @@
 
         <!-- Comment input -->
         <div v-if="auth.isLoggedIn" class="card comment-input">
+          <!-- 蜜罐：隐藏字段，正常用户不可见，爬虫会自动填写 -->
+          <input
+            v-model="honeypotField"
+            type="text"
+            name="website"
+            autocomplete="off"
+            tabindex="-1"
+            style="position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; pointer-events: none"
+          />
           <MentionInput
             v-model="newComment"
             :placeholder="replyTarget ? `回复 @${replyTarget.user.nickname || replyTarget.user.username}...` : '写下你的评论...'"
@@ -108,7 +117,7 @@
               <span class="text-4" style="font-size: 12px">{{ formatTime(cm.created_at) }}</span>
             </div>
 
-            <div class="comment-item__body text-2" v-html="renderCommentContent(cm)"></div>
+            <div class="comment-item__body text-2" v-html="renderCommentContent(cm)" @click="handleContentClick"></div>
 
             <div class="comment-item__actions">
               <button class="comment-action" :class="{ 'comment-action--active': cm.liked }" @click="handleCommentLike(cm)">
@@ -136,7 +145,7 @@
                   </span>
                   <span class="text-4" style="font-size: 12px">{{ formatTime(reply.created_at) }}</span>
                 </div>
-                <div class="comment-item__body" style="font-size: 13px; margin-bottom: 4px" v-html="renderCommentContent(reply)"></div>
+                <div class="comment-item__body" style="font-size: 13px; margin-bottom: 4px" v-html="renderCommentContent(reply)" @click="handleContentClick"></div>
                 <div class="comment-item__actions" style="padding: 2px 0">
                   <button class="comment-action" :class="{ 'comment-action--active': reply.liked }" @click="handleCommentLike(reply)" style="font-size: 12px">
                     <PhThumbsUp :size="12" :weight="reply.liked ? 'fill' : 'regular'" />
@@ -183,8 +192,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
-import { getPost, toggleLikePost, deletePost, listComments, createComment, listReplies, toggleCommentLike } from '../api'
-import { renderContent } from '../utils/render'
+import { getPost, toggleLikePost, deletePost, listComments, createComment, listReplies, toggleCommentLike, getCommentChallenge } from '../api'
+import { renderContent, handleRenderedContentClick } from '../utils/render'
 import MentionInput from '../components/MentionInput.vue'
 import {
   PhCaretRight, PhClock, PhEye, PhThumbsUp, PhTrash, PhMagnifyingGlass,
@@ -213,6 +222,20 @@ const expandedReplies = ref({}) // { commentId: [replies] } — 用户点击"查
 const newComment = ref('')
 const submitting = ref(false)
 const replyTarget = ref(null) // { comment, topLevelComment? }
+
+// 反垃圾状态
+const honeypotField = ref('')
+const challengeNonce = ref('')
+const challengeTimestamp = ref(0)
+
+// 计算 proof = SHA-256(nonce + ":" + timestamp) 的前 16 位 hex
+async function computeProof(nonce, timestamp) {
+  const raw = `${nonce}:${timestamp}`
+  const buffer = new TextEncoder().encode(raw)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+}
 
 // Avatar color hash
 const avatarColors = ['#9b8ec4', '#6db89a', '#7ba4d4', '#d4a07a', '#c47a99', '#8bb8a8', '#d4b85a', '#c4987a']
@@ -261,6 +284,18 @@ async function fetchComments() {
   }
 }
 
+// 获取 challenge
+async function fetchChallenge() {
+  try {
+    const res = await getCommentChallenge()
+    challengeNonce.value = res.data.nonce
+    challengeTimestamp.value = res.data.timestamp
+  } catch (e) {
+    // 静默失败，不影响用户体验
+    console.warn('获取 challenge 失败:', e.message)
+  }
+}
+
 // Submit comment
 async function submitComment() {
   if (!newComment.value.trim() || submitting.value) return
@@ -270,12 +305,30 @@ async function submitComment() {
     if (replyTarget.value) {
       data.parent_id = replyTarget.value.comment.id
     }
+
+    // 确保 challenge 可用，如果之前获取失败则重试一次
+    if (!challengeNonce.value) {
+      await fetchChallenge()
+    }
+    if (!challengeNonce.value) {
+      toast.error('系统繁忙，请刷新页面后重试')
+      return
+    }
+
+    // 反垃圾字段
+    data.website = honeypotField.value
+    data._ts = challengeTimestamp.value
+    data._nonce = challengeNonce.value
+    data._proof = await computeProof(challengeNonce.value, challengeTimestamp.value)
+
     await createComment(route.params.code, data)
     newComment.value = ''
     replyTarget.value = null
     toast.success('评论成功')
     fetchComments()
     if (post.value) post.value.reply_count++
+    // 提交后重新获取 challenge（一次性使用）
+    fetchChallenge()
   } catch (e) {
     toast.error(e.message)
   } finally {
@@ -338,11 +391,7 @@ async function handleDelete() {
 }
 
 function handleContentClick(e) {
-  const link = e.target.closest('.mention-link')
-  if (link) {
-    e.preventDefault()
-    router.push({ name: 'UserProfile', params: { username: link.dataset.username } })
-  }
+  handleRenderedContentClick(e, router)
 }
 
 function handleCommentKeydown(e) {
@@ -371,6 +420,7 @@ function formatTime(dateStr) {
 
 onMounted(() => {
   fetchPost().then(() => fetchComments())
+  fetchChallenge()
 })
 </script>
 
@@ -436,6 +486,16 @@ onMounted(() => {
 }
 .post-detail__content :deep(.mention-link:hover) {
   text-decoration: underline;
+}
+
+/* External links */
+.post-detail__content :deep(.external-link),
+.comment-item__body :deep(.external-link) {
+  color: var(--accent); text-decoration: underline dotted; word-break: break-all;
+}
+.post-detail__content :deep(.external-link:hover),
+.comment-item__body :deep(.external-link:hover) {
+  text-decoration: underline solid;
 }
 
 .post-detail__mentions {

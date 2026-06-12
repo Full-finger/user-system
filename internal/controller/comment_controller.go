@@ -1,24 +1,131 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
+	"github.com/full-finger/user-system/pkg/randstr"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 // CommentController 评论相关接口的处理器。
 type CommentController struct {
 	commentSvc *service.CommentService
+	rdb        *redis.Client
 	log        *zap.Logger
 }
 
-func NewCommentController(commentSvc *service.CommentService, log *zap.Logger) *CommentController {
-	return &CommentController{commentSvc: commentSvc, log: log}
+func NewCommentController(commentSvc *service.CommentService, rdb *redis.Client, log *zap.Logger) *CommentController {
+	return &CommentController{commentSvc: commentSvc, rdb: rdb, log: log}
+}
+
+// GetChallenge 下发评论反垃圾 challenge（nonce + timestamp）。
+func (ctrl *CommentController) GetChallenge(c echo.Context) error {
+	nonce := randstr.RandomHex(16)
+	ts := time.Now().UnixMilli()
+
+	// 存储 nonce 到 Redis，TTL 25h（比 24h 上限多一些余量）
+	key := fmt.Sprintf("comment:challenge:%s", nonce)
+	if err := ctrl.rdb.Set(c.Request().Context(), key, "1", 25*time.Hour).Err(); err != nil {
+		ctrl.log.Error("存储 challenge nonce 失败", zap.Error(err))
+		return apperror.Internal("系统繁忙，请稍后重试")
+	}
+
+	return success(c, map[string]any{
+		"nonce":     nonce,
+		"timestamp": ts,
+	})
+}
+
+// checkAntispam 执行反垃圾检查。返回 true 表示是垃圾评论（已静默处理）。
+func (ctrl *CommentController) checkAntispam(c echo.Context, req *param.CreateCommentRequest) bool {
+	logger := ctrl.log.With(zap.String("ip", c.RealIP()))
+
+	// 1. 蜜罐检查：website 字段非空则判定为垃圾
+	if req.Website != "" {
+		logger.Warn("评论被蜜罐拦截",
+			zap.String("website", req.Website),
+			zap.String("content_preview", truncateStr(req.Content, 100)),
+		)
+		return true
+	}
+
+	// 2. 时间戳检查
+	now := time.Now().UnixMilli()
+	elapsed := now - req.Ts
+	if elapsed < 3000 { // 小于 3 秒
+		logger.Warn("评论提交过快",
+			zap.Int64("elapsed_ms", elapsed),
+			zap.String("content_preview", truncateStr(req.Content, 100)),
+		)
+		return true
+	}
+	if elapsed > 24*60*60*1000 { // 大于 24 小时
+		logger.Warn("评论时间戳过期",
+			zap.Int64("elapsed_ms", elapsed),
+			zap.String("content_preview", truncateStr(req.Content, 100)),
+		)
+		return true
+	}
+
+	// 3. JS Challenge 检查
+	if req.Nonce == "" || req.Proof == "" {
+		logger.Warn("评论缺少 challenge 字段",
+			zap.String("nonce", req.Nonce),
+			zap.String("proof", req.Proof),
+		)
+		return true
+	}
+
+	// 检查 nonce 是否存在于 Redis
+	key := fmt.Sprintf("comment:challenge:%s", req.Nonce)
+	val, err := ctrl.rdb.Get(c.Request().Context(), key).Result()
+	if err != nil || val == "" {
+		logger.Warn("评论 challenge nonce 无效或已使用",
+			zap.String("nonce", req.Nonce),
+			zap.Error(err),
+		)
+		return true
+	}
+
+	// 删除 nonce（一次性使用，防重放）
+	ctrl.rdb.Del(c.Request().Context(), key)
+
+	// 验证 proof：sha256(nonce + ":" + timestamp)[:16]
+	expected := computeProof(req.Nonce, req.Ts)
+	if req.Proof != expected {
+		logger.Warn("评论 challenge proof 不匹配",
+			zap.String("nonce", req.Nonce),
+			zap.String("proof", req.Proof),
+			zap.String("expected", expected),
+		)
+		return true
+	}
+
+	return false
+}
+
+// computeProof 计算 JS Challenge 的 proof = sha256(nonce:timestamp) 的前 16 位 hex。
+func computeProof(nonce string, ts int64) string {
+	raw := fmt.Sprintf("%s:%d", nonce, ts)
+	hash := sha256.Sum256([]byte(raw))
+	return fmt.Sprintf("%x", hash)[:16]
+}
+
+// truncateStr 截断字符串用于日志。
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 // CreateComment 创建评论或回复。
@@ -32,6 +139,19 @@ func (ctrl *CommentController) CreateComment(c echo.Context) error {
 	if err := param.BindAndValidate(c, &req); err != nil {
 		return err
 	}
+
+	// 反垃圾检查：静默丢弃（返回假的成功响应）
+	if ctrl.checkAntispam(c, &req) {
+		return success(c, map[string]any{
+			"id":         0,
+			"content":    req.Content,
+			"user":       nil,
+			"like_count": 0,
+			"liked":      false,
+			"created_at": time.Now().Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+
 	comment, likedMap, err := ctrl.commentSvc.CreateComment(c.Request().Context(), uc, code, req.Content, req.ParentID)
 	if err != nil {
 		return err
