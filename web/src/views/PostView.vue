@@ -81,7 +81,8 @@
             name="website"
             autocomplete="off"
             tabindex="-1"
-            style="position: absolute; left: -9999px; opacity: 0; height: 0; width: 0; pointer-events: none"
+            aria-hidden="true"
+            style="position: fixed; clip: rect(0, 0, 0, 0); width: 1px; height: 1px; overflow: hidden; pointer-events: none"
           />
           <MentionInput
             v-model="newComment"
@@ -109,9 +110,7 @@
           <div v-for="cm in comments" :key="cm.id" class="comment-item card">
             <div class="comment-item__header">
               <router-link :to="{ name: 'UserProfile', params: { username: cm.user.username } }" class="comment-item__author">
-                <div class="comment-item__avatar" :style="{ background: getAvatarColor(cm.user.username) }">
-                  {{ (cm.user.nickname || cm.user.username).charAt(0).toUpperCase() }}
-                </div>
+                <UserAvatar class="comment-item__avatar" :avatar-url="cm.user.avatar_url" :name="cm.user.nickname || cm.user.username" size="sm" />
                 <span style="font-weight: 500; font-size: 14px">{{ cm.user.nickname || cm.user.username }}</span>
               </router-link>
               <span class="text-4" style="font-size: 12px">{{ formatTime(cm.created_at) }}</span>
@@ -135,9 +134,7 @@
               <div v-for="reply in (expandedReplies[cm.id] || cm.replies || [])" :key="reply.id" class="comment-reply-item">
                 <div class="comment-item__header" style="margin-bottom: 4px">
                   <router-link :to="{ name: 'UserProfile', params: { username: reply.user.username } }" style="display: flex; align-items: center; gap: 6px; text-decoration: none; color: var(--text-1)">
-                    <div class="comment-item__avatar comment-item__avatar--sm" :style="{ background: getAvatarColor(reply.user.username) }">
-                      {{ (reply.user.nickname || reply.user.username).charAt(0).toUpperCase() }}
-                    </div>
+                    <UserAvatar class="comment-item__avatar comment-item__avatar--sm" :avatar-url="reply.user.avatar_url" :name="reply.user.nickname || reply.user.username" size="sm" />
                     <span style="font-weight: 500; font-size: 13px">{{ reply.user.nickname || reply.user.username }}</span>
                   </router-link>
                   <span v-if="reply.reply_to" class="text-4" style="font-size: 12px">
@@ -194,7 +191,9 @@ import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { getPost, toggleLikePost, deletePost, listComments, createComment, listReplies, toggleCommentLike, getCommentChallenge } from '../api'
 import { renderContent, handleRenderedContentClick } from '../utils/render'
+import { formatTime } from '../utils/format'
 import MentionInput from '../components/MentionInput.vue'
+import UserAvatar from '../components/UserAvatar.vue'
 import {
   PhCaretRight, PhClock, PhEye, PhThumbsUp, PhTrash, PhMagnifyingGlass,
   PhChatCircle, PhChatCircleDots, PhArrowBendUpLeft
@@ -225,25 +224,10 @@ const replyTarget = ref(null) // { comment, topLevelComment? }
 
 // 反垃圾状态
 const honeypotField = ref('')
+const honeypotFieldName = ref('website')  // 从 challenge 响应中获取的字段名
 const challengeNonce = ref('')
 const challengeTimestamp = ref(0)
-
-// 计算 proof = SHA-256(nonce + ":" + timestamp) 的前 16 位 hex
-async function computeProof(nonce, timestamp) {
-  const raw = `${nonce}:${timestamp}`
-  const buffer = new TextEncoder().encode(raw)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
-}
-
-// Avatar color hash
-const avatarColors = ['#9b8ec4', '#6db89a', '#7ba4d4', '#d4a07a', '#c47a99', '#8bb8a8', '#d4b85a', '#c4987a']
-function getAvatarColor(name) {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  return avatarColors[Math.abs(hash) % avatarColors.length]
-}
+const challengeDifficulty = ref(4)  // PoW 难度
 
 function renderCommentContent(cm) {
   return renderContent(cm.content, cm.mentions || [])
@@ -284,16 +268,32 @@ async function fetchComments() {
   }
 }
 
-// 获取 challenge
+// 获取 challenge（包含 nonce、difficulty、honeypot_field）
 async function fetchChallenge() {
   try {
     const res = await getCommentChallenge()
     challengeNonce.value = res.data.nonce
     challengeTimestamp.value = res.data.timestamp
+    challengeDifficulty.value = res.data.difficulty || 4
+    honeypotFieldName.value = res.data.honeypot_field || 'website'
   } catch (e) {
     // 静默失败，不影响用户体验
     console.warn('获取 challenge 失败:', e.message)
   }
+}
+
+// PoW 计算委托给 Web Worker，避免阻塞主线程
+import PowWorker from '../workers/pow.worker.js?worker'
+
+function computePoW(nonce, timestamp, difficulty) {
+  return new Promise((resolve) => {
+    const worker = new PowWorker()
+    worker.onmessage = (e) => {
+      worker.terminate()
+      resolve(e.data.suffix)
+    }
+    worker.postMessage({ nonce, timestamp, difficulty })
+  })
 }
 
 // Submit comment
@@ -315,11 +315,18 @@ async function submitComment() {
       return
     }
 
-    // 反垃圾字段
-    data.website = honeypotField.value
+    // 计算 PoW（异步，在 Web Worker 中执行）
+    const suffix = await computePoW(challengeNonce.value, challengeTimestamp.value, challengeDifficulty.value)
+    if (!suffix) {
+      toast.error('系统繁忙，请刷新页面后重试')
+      return
+    }
+
+    // 反垃圾字段（蜜罐使用动态字段名）
+    data[honeypotFieldName.value] = honeypotField.value
     data._ts = challengeTimestamp.value
     data._nonce = challengeNonce.value
-    data._proof = await computeProof(challengeNonce.value, challengeTimestamp.value)
+    data._suffix = suffix
 
     await createComment(route.params.code, data)
     newComment.value = ''
@@ -406,16 +413,6 @@ function scrollToComment() {
     const textarea = commentSectionRef.value.querySelector('.comment-input textarea')
     if (textarea) textarea.focus()
   }
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr); const diff = Math.floor((Date.now() - d) / 1000)
-  if (diff < 60) return '刚刚'
-  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
-  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
-  if (diff < 604800) return Math.floor(diff / 86400) + ' 天前'
-  return d.toLocaleDateString('zh-CN')
 }
 
 onMounted(() => {
@@ -551,13 +548,11 @@ onMounted(() => {
 }
 
 .comment-item__avatar {
-  width: 28px; height: 28px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  color: white; font-size: 13px; font-weight: 600; flex-shrink: 0;
+  width: 28px !important; height: 28px !important; font-size: 13px;
 }
 
 .comment-item__avatar--sm {
-  width: 22px; height: 22px; font-size: 11px;
+  width: 22px !important; height: 22px !important; font-size: 11px;
 }
 
 .comment-item__body {

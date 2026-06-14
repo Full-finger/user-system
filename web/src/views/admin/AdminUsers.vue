@@ -39,9 +39,7 @@
           <tr v-for="user in users" :key="user.id">
             <td>
               <div style="display: flex; align-items: center; gap: 10px">
-                <div class="avatar avatar--sm">
-                  {{ (user.nickname || user.username)[0].toUpperCase() }}
-                </div>
+                <UserAvatar :avatar-url="user.avatar_url" :name="user.nickname || user.username" size="sm" />
                 <div style="min-width: 0">
                   <div style="font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">
                     {{ user.nickname || user.username }}
@@ -58,6 +56,14 @@
             <td>
               <div v-if="user.id === authStore.user?.id" class="text-4" style="font-size: 12px">当前用户</div>
               <div v-else style="display: flex; gap: 4px">
+                <button
+                  v-if="isAdmin && canAppoint(user)"
+                  class="btn btn--outline btn--sm"
+                  title="任命版主"
+                  @click="openAppointModal(user)"
+                >
+                  <PhShieldStar :size="13" />
+                </button>
                 <button class="btn btn--outline btn--sm" @click="openEditModal(user)" title="编辑">
                   <PhPencil :size="13" />
                 </button>
@@ -86,6 +92,60 @@
         </button>
       </div>
     </div>
+
+    <!-- 任命版主弹窗 -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="appointModal.show" class="modal-overlay" @click.self="appointModal.show = false">
+          <div class="modal-panel card">
+            <div class="modal-panel__header">
+              <h3 class="font-display" style="font-size: 18px">任命版主</h3>
+              <button class="modal-panel__close" @click="appointModal.show = false">
+                <PhX :size="18" />
+              </button>
+            </div>
+            <div class="modal-panel__body">
+              <div class="admin__readonly">
+                <div class="admin__readonly-row">
+                  <span class="text-4">用户</span>
+                  <span style="font-size: 13px">@{{ appointModal.user?.username }}</span>
+                </div>
+              </div>
+              <div class="admin__field">
+                <label class="admin__label">选择管辖节点（可多选）</label>
+                <div v-if="nodesLoading" style="padding: 12px; text-align: center">
+                  <PhCircleNotch :size="16" class="spin" style="color: var(--text-4)" />
+                </div>
+                <div v-else-if="allNodes.length === 0" class="text-4" style="font-size: 13px">暂无可用节点</div>
+                <div v-else class="admin__role-options">
+                  <button
+                    v-for="node in allNodes"
+                    :key="node.id"
+                    class="admin__role-option"
+                    :class="{ 'admin__role-option--active': appointForm.nodeIds.includes(node.id) }"
+                    @click="toggleNodeSelect(node.id)"
+                    type="button"
+                  >
+                    {{ node.name }}
+                  </button>
+                </div>
+              </div>
+              <div v-if="appointError" class="admin__error">
+                <PhXCircle :size="14" />
+                {{ appointError }}
+              </div>
+            </div>
+            <div class="modal-panel__footer">
+              <button class="btn btn--outline" @click="appointModal.show = false">取消</button>
+              <button class="btn btn--primary" @click="handleAppoint" :disabled="appointLoading || appointForm.nodeIds.length === 0">
+                <PhCircleNotch v-if="appointLoading" :size="16" class="spin" />
+                {{ appointLoading ? '任命中...' : '确认任命' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- 编辑弹窗 -->
     <Teleport to="body">
@@ -160,10 +220,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useToast } from '../../composables/useToast'
 import { roleLabel, ADMIN_ROLES, ASSIGNABLE_ROLES } from '../../utils/role'
 import { useAuthStore } from '../../stores/auth'
-import { listUsers, updateUser, deleteUser } from '../../api'
+import { listUsers, updateUser, deleteUser, listNodes, appointModerator } from '../../api'
+import UserAvatar from '../../components/UserAvatar.vue'
 import {
   PhArrowClockwise, PhPencil, PhTrash, PhCaretLeft, PhCaretRight,
-  PhX, PhXCircle, PhCircleNotch, PhUsers
+  PhX, PhXCircle, PhCircleNotch, PhUsers, PhShieldStar
 } from '@phosphor-icons/vue'
 
 const users = ref([])
@@ -180,8 +241,66 @@ const editLoading = ref(false)
 const toast = useToast()
 const authStore = useAuthStore()
 
+const isAdmin = computed(() => ADMIN_ROLES.includes(authStore.user?.role))
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 const assignableRoles = computed(() => ASSIGNABLE_ROLES[authStore.user?.role] || [])
+
+// 任命版主相关
+const appointModal = reactive({ show: false, user: null })
+const appointForm = reactive({ nodeIds: [] })
+const appointError = ref('')
+const appointLoading = ref(false)
+const allNodes = ref([])
+const nodesLoading = ref(false)
+
+function canAppoint(user) {
+  return user.role === 'user' || user.role === 'verified_user'
+}
+
+async function openAppointModal(user) {
+  appointModal.user = user
+  appointForm.nodeIds = []
+  appointError.value = ''
+  appointModal.show = true
+  if (allNodes.value.length === 0) {
+    nodesLoading.value = true
+    try {
+      const res = await listNodes()
+      allNodes.value = res.data?.nodes || []
+    } catch (e) {
+      appointError.value = '加载节点列表失败'
+    } finally {
+      nodesLoading.value = false
+    }
+  }
+}
+
+function toggleNodeSelect(nodeId) {
+  const idx = appointForm.nodeIds.indexOf(nodeId)
+  if (idx >= 0) {
+    appointForm.nodeIds.splice(idx, 1)
+  } else {
+    appointForm.nodeIds.push(nodeId)
+  }
+}
+
+async function handleAppoint() {
+  appointError.value = ''
+  appointLoading.value = true
+  try {
+    await appointModerator({
+      user_id: appointModal.user.id,
+      node_ids: appointForm.nodeIds
+    })
+    toast.success(`已将 @${appointModal.user.username} 任命为版主`)
+    appointModal.show = false
+    fetchUsers()
+  } catch (e) {
+    appointError.value = e.message
+  } finally {
+    appointLoading.value = false
+  }
+}
 
 async function fetchUsers() {
   loading.value = true

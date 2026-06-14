@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   PhChartBar,
   PhUsers,
@@ -41,16 +41,26 @@ import AdminUsers from './admin/AdminUsers.vue'
 import AdminPosts from './admin/AdminPosts.vue'
 import AdminComments from './admin/AdminComments.vue'
 import AdminNodes from './admin/AdminNodes.vue'
+import { useAuthStore } from '../stores/auth'
+import { ADMIN_ROLES } from '../utils/role'
 
-const activeTab = ref('dashboard')
+const authStore = useAuthStore()
 
-const tabs = [
-  { key: 'dashboard', label: '概览', icon: PhChartBar },
-  { key: 'users', label: '用户管理', icon: PhUsers },
-  { key: 'posts', label: '帖子管理', icon: PhArticle },
-  { key: 'comments', label: '评论管理', icon: PhChatCircle },
-  { key: 'nodes', label: '节点管理', icon: PhFolders }
+const isAdmin = computed(() => ADMIN_ROLES.includes(authStore.user?.role))
+
+const allTabs = [
+  { key: 'dashboard', label: '概览', icon: PhChartBar, adminOnly: true },
+  { key: 'users', label: '用户管理', icon: PhUsers, adminOnly: true },
+  { key: 'posts', label: '帖子管理', icon: PhArticle, adminOnly: false },
+  { key: 'comments', label: '评论管理', icon: PhChatCircle, adminOnly: false },
+  { key: 'nodes', label: '节点管理', icon: PhFolders, adminOnly: true }
 ]
+
+const tabs = computed(() =>
+  isAdmin.value ? allTabs : allTabs.filter((t) => !t.adminOnly)
+)
+
+const activeTab = ref(isAdmin.value ? 'dashboard' : 'posts')
 </script>
 
 <style scoped>

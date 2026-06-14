@@ -21,6 +21,19 @@
       <!-- ====== 资料 Tab ====== -->
       <div v-show="activeTab === 'profile'" class="card settings__panel">
         <div class="settings__rows">
+          <div class="settings__row settings__row--avatar">
+            <div class="settings__row-label">
+              <span>头像</span>
+              <span class="settings__row-hint">基于邮箱自动生成，前往 Cravatar 自定义</span>
+            </div>
+            <div class="settings__row-control settings__row-control--end">
+              <UserAvatar :avatar-url="auth.user?.avatar_url" :name="auth.user?.nickname || auth.user?.username" size="md" />
+              <a href="https://cn.cravatar.com/avatars" target="_blank" rel="noopener noreferrer" class="btn btn--outline btn--sm">
+                <PhArrowSquareOut :size="14" />
+                去设置
+              </a>
+            </div>
+          </div>
           <div class="settings__row">
             <div class="settings__row-label">
               <span>昵称</span>
@@ -32,11 +45,42 @@
           </div>
           <div class="settings__row">
             <div class="settings__row-label">
+              <span>座右铭</span>
+              <span class="settings__row-hint">展示在个人主页头像下方，最多 100 字符</span>
+            </div>
+            <div class="settings__row-control">
+              <input v-model="profileForm.motto" type="text" class="input settings__input" maxlength="100" placeholder="写一句你的座右铭" />
+            </div>
+          </div>
+          <div class="settings__row">
+            <div class="settings__row-label">
               <span>用户名</span>
               <span class="settings__row-hint">不可更改</span>
             </div>
             <div class="settings__row-control">
               <span class="settings__static-value">@{{ auth.user.username }}</span>
+            </div>
+          </div>
+          <div class="settings__row settings__row--cover">
+            <div class="settings__row-label">
+              <span>封面主题</span>
+              <span class="settings__row-hint">选择个人主页顶部封面，可选"无封面"</span>
+            </div>
+            <div class="settings__row-control settings__row-control--end">
+              <div class="settings__cover-group">
+                <button
+                  v-for="t in coverThemes"
+                  :key="t.key || 'none'"
+                  type="button"
+                  class="settings__cover-btn"
+                  :class="{ 'settings__cover-btn--active': profileForm.cover_theme === t.key }"
+                  :style="t.css === 'none' ? {} : { background: t.css }"
+                  :title="t.name"
+                  @click="profileForm.cover_theme = t.key"
+                >
+                  <span v-if="t.css === 'none'" class="settings__cover-none">{{ t.name }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -265,10 +309,12 @@ import { ref, reactive, computed, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { updateProfile, bindEmail, sendCode } from '../api'
+import { coverThemes } from '../config/coverThemes'
+import UserAvatar from '../components/UserAvatar.vue'
 import {
   PhUser, PhKey, PhEnvelopeSimple, PhPalette, PhWarning, PhTrash,
   PhXCircle, PhCheckCircle, PhCircleNotch, PhSun, PhMoon, PhDesktop,
-  PhWarningCircle, PhX, PhAt
+  PhWarningCircle, PhX, PhAt, PhArrowSquareOut
 } from '@phosphor-icons/vue'
 
 const auth = useAuthStore()
@@ -292,8 +338,10 @@ const themeOptions = [
 ]
 
 // ---- Profile (资料 Tab) ----
-const profileForm = reactive({ nickname: '' })
+const profileForm = reactive({ nickname: '', motto: '', cover_theme: '' })
 const initialNickname = ref('')
+const initialMotto = ref('')
+const initialCoverTheme = ref('')
 const profileSaving = ref(false)
 const profileError = ref('')
 const profileSuccess = ref('')
@@ -303,13 +351,21 @@ watch(() => auth.user, (user) => {
   if (user) {
     profileForm.nickname = user.nickname || ''
     initialNickname.value = user.nickname || ''
+    profileForm.motto = user.motto || ''
+    initialMotto.value = user.motto || ''
+    profileForm.cover_theme = user.cover_theme || ''
+    initialCoverTheme.value = user.cover_theme || ''
   }
 }, { immediate: true })
 
-const profileDirty = computed(() => profileForm.nickname !== initialNickname.value)
+const profileDirty = computed(
+  () => profileForm.nickname !== initialNickname.value || profileForm.motto !== initialMotto.value || profileForm.cover_theme !== initialCoverTheme.value
+)
 
 function resetProfile() {
   profileForm.nickname = initialNickname.value
+  profileForm.motto = initialMotto.value
+  profileForm.cover_theme = initialCoverTheme.value
   profileError.value = ''
   profileSuccess.value = ''
 }
@@ -321,10 +377,16 @@ async function saveProfile() {
     profileError.value = '昵称长度 1-50 字符'
     return
   }
+  if (profileForm.motto.length > 100) {
+    profileError.value = '座右铭长度不超过 100 字符'
+    return
+  }
   profileSaving.value = true
   try {
-    await updateProfile({ nickname: profileForm.nickname })
+    await updateProfile({ nickname: profileForm.nickname, motto: profileForm.motto, cover_theme: profileForm.cover_theme })
     initialNickname.value = profileForm.nickname
+    initialMotto.value = profileForm.motto
+    initialCoverTheme.value = profileForm.cover_theme
     profileSuccess.value = '资料已保存'
     auth.fetchProfile()
     setTimeout(() => { profileSuccess.value = '' }, 3000)
@@ -682,6 +744,45 @@ function toggleMentionSource(key) {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-light);
+}
+
+/* ---- Cover theme picker ---- */
+.settings__cover-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.settings__cover-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+  transition: border-color var(--duration-medium-1) var(--ease-standard),
+              transform var(--duration-medium-1) var(--ease-standard);
+}
+
+.settings__cover-btn:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.settings__cover-btn--active {
+  border-color: var(--accent);
+}
+
+.settings__cover-none {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
 }
 
 /* ---- Toggle switch ---- */

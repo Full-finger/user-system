@@ -208,6 +208,8 @@
   font-size: 12px;
   font-weight: 500;
   font-family: var(--font-body);
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .pill--accent { background: var(--accent-light); color: var(--accent); }

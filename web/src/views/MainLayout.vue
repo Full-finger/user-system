@@ -40,9 +40,7 @@
 
           <template v-if="auth.isLoggedIn">
             <router-link to="/profile" class="topbar__avatar" :title="auth.user?.nickname || auth.user?.username">
-              <div class="avatar avatar--sm">
-                {{ (auth.user?.nickname || auth.user?.username || '?')[0].toUpperCase() }}
-              </div>
+              <UserAvatar :avatar-url="auth.user?.avatar_url" :name="auth.user?.nickname || auth.user?.username" size="sm" />
             </router-link>
           </template>
           <template v-else>
@@ -89,7 +87,7 @@
           <PhGearSix :size="20" />
           <span>设置</span>
         </router-link>
-        <router-link to="/admin" class="sidebar__item" @click="sidebarOpen = false" v-if="auth.isAdmin">
+        <router-link to="/admin" class="sidebar__item" @click="sidebarOpen = false" v-if="auth.canManagePosts">
           <PhSquaresFour :size="20" />
           <span>管理后台</span>
         </router-link>
@@ -159,6 +157,7 @@ import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { useRouter, useRoute } from 'vue-router'
 import { siteConfig } from '../config/site'
+import UserAvatar from '../components/UserAvatar.vue'
 
 import {
   PhList, PhSparkle, PhMagnifyingGlass, PhBell, PhEnvelopeSimple,

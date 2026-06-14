@@ -1,171 +1,110 @@
 <template>
   <div class="user-profile fade-up">
     <template v-if="profile">
-      <!-- Header -->
-      <div class="card profile-header fade-up">
-        <div class="profile-header__left">
-          <div class="avatar avatar--lg">{{ (profile.nickname || profile.username || '?')[0].toUpperCase() }}</div>
-          <div class="profile-header__info">
-            <h1 class="font-display profile-header__name">{{ profile.nickname || profile.username }}</h1>
-            <div class="profile-header__meta">
-              <span class="pill pill--accent">{{ roleLabel(profile.role) }}</span>
-              <span class="text-3" style="font-size: 13px">
-                <PhClock :size="12" style="vertical-align: -1px" />
-                注册于 {{ formatDate(profile.created_at) }}
-              </span>
+      <!-- Header（含座右铭 + 紧凑统计） -->
+      <div class="card profile-header fade-up" :style="coverStyle">
+        <div v-if="profile.cover_theme" class="profile-header__cover"></div>
+        <div class="profile-header__body">
+          <div class="profile-header__left">
+            <UserAvatar :avatar-url="profile.avatar_url" :name="profile.nickname || profile.username" size="lg" />
+            <div class="profile-header__info">
+              <h1 class="font-display profile-header__name">{{ profile.nickname || profile.username }}</h1>
+              <div class="profile-header__meta">
+                <span class="pill pill--accent">{{ roleLabel(profile.role) }}</span>
+                <span class="text-3" style="font-size: 13px">
+                  <PhClock :size="12" style="vertical-align: -1px" />
+                  注册于 {{ formatDate(profile.created_at) }}
+                </span>
+              </div>
+              <p v-if="profile.motto" class="profile-header__motto text-3">{{ profile.motto }}</p>
             </div>
           </div>
+          <div class="profile-header__right">
+            <div class="profile-header__stats">
+              <div class="profile-header__stat">
+                <div class="profile-header__stat-value font-display">{{ profile.post_count }}</div>
+                <div class="profile-header__stat-label text-3">发帖</div>
+              </div>
+              <div class="profile-header__stat">
+                <div class="profile-header__stat-value font-display">{{ profile.like_count }}</div>
+                <div class="profile-header__stat-label text-3">获赞</div>
+              </div>
+              <div class="profile-header__stat">
+                <div class="profile-header__stat-value font-display">{{ profile.follower_count }}</div>
+                <div class="profile-header__stat-label text-3">粉丝</div>
+              </div>
+              <div class="profile-header__stat">
+                <div class="profile-header__stat-value font-display">{{ profile.following_count }}</div>
+                <div class="profile-header__stat-label text-3">关注</div>
+              </div>
+            </div>
+            <!-- 看自己：进入个人中心；看别人：关注按钮 -->
+            <router-link
+              v-if="auth.isLoggedIn && auth.user?.id === profile.id"
+              to="/profile"
+              class="btn btn--outline btn--sm"
+            >
+              <PhGearSix :size="14" />
+              进入个人中心
+            </router-link>
+            <button
+              v-else-if="auth.isLoggedIn && auth.user?.id !== profile.id"
+              class="btn btn--sm"
+              :class="followed ? 'btn--primary' : 'btn--outline'"
+              @click="handleFollow"
+            >
+              <PhUserPlus :size="14" :weight="followed ? 'fill' : 'regular'" />
+              {{ followed ? '已关注' : '关注' }}
+            </button>
+          </div>
         </div>
-        <button
-          v-if="auth.isLoggedIn && auth.user?.id !== profile.id"
-          class="btn btn--sm"
-          :class="followed ? 'btn--primary' : 'btn--outline'"
-          @click="handleFollow"
+      </div>
+
+      <!-- Moderated Nodes -->
+      <div v-if="profile.moderated_nodes?.length" class="card fade-up" style="animation-delay: 40ms; padding: 16px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+        <span class="text-3" style="font-size: 13px; display: flex; align-items: center; gap: 4px"><PhShieldStar :size="14" /> 版主节点</span>
+        <router-link
+          v-for="n in profile.moderated_nodes" :key="n.id"
+          :to="{ name: 'NodePosts', params: { id: n.id } }"
+          class="pill"
+          :style="{ background: (n.color || '#9b8ec4') + '18', color: n.color || '#9b8ec4' }"
+          style="text-decoration: none; cursor: pointer"
+        >{{ n.name }}</router-link>
+      </div>
+
+      <!-- Posts -->
+      <div v-if="userPosts.length > 0">
+        <div v-for="(p, i) in userPosts" :key="p.code"
+          class="post-card card fade-up"
+          :style="{ animationDelay: ((i + 4) * 40) + 'ms' }"
+          @click="$router.push({ name: 'PostDetail', params: { code: p.code } })"
         >
-          <PhUserPlus :size="14" :weight="followed ? 'fill' : 'regular'" />
-          {{ followed ? '已关注' : '关注' }}
-        </button>
-      </div>
-
-      <!-- Stats -->
-      <div class="profile__stats fade-up" style="animation-delay: 40ms">
-        <div class="card profile-stat">
-          <div class="profile-stat__icon" style="color: #9b8ec4"><PhNote :size="20" /></div>
-          <div class="profile-stat__value font-display">{{ profile.post_count }}</div>
-          <div class="profile-stat__label text-3">发帖数</div>
-        </div>
-        <div class="card profile-stat">
-          <div class="profile-stat__icon" style="color: #c47a99"><PhHeart :size="20" /></div>
-          <div class="profile-stat__value font-display">{{ profile.follower_count }}</div>
-          <div class="profile-stat__label text-3">粉丝</div>
-        </div>
-        <div class="card profile-stat">
-          <div class="profile-stat__icon" style="color: #7ba4d4"><PhUserPlus :size="20" /></div>
-          <div class="profile-stat__value font-display">{{ profile.following_count }}</div>
-          <div class="profile-stat__label text-3">关注</div>
-        </div>
-      </div>
-
-      <!-- Tabs -->
-      <div class="tab-bar fade-up" style="animation-delay: 80ms">
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'posts' }" @click="switchTab('posts')">
-          <PhNote :size="14" /> 帖子
-        </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'likes' }" @click="switchTab('likes')">
-          <PhHeart :size="14" /> 点赞
-        </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followers' }" @click="switchTab('followers')">
-          <PhUsers :size="14" /> 粉丝
-        </button>
-        <button class="tab-btn" :class="{ 'tab-btn--active': activeTab === 'followings' }" @click="switchTab('followings')">
-          <PhUserPlus :size="14" /> 关注
-        </button>
-      </div>
-
-      <!-- Posts tab -->
-      <div v-if="activeTab === 'posts'">
-        <div v-if="userPosts.length > 0">
-          <div v-for="(p, i) in userPosts" :key="p.code"
-            class="post-card card fade-up"
-            :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { code: p.code } })"
-          >
-            <div class="post-card__bar" :style="{ background: p.node?.color || 'var(--accent)' }"></div>
-            <div class="post-card__vote">
-              <span class="font-display" style="font-size: 14px; font-weight: 600">{{ p.like_count }}</span>
-              <span style="font-size: 11px" class="text-4"><PhThumbsUp :size="12" /></span>
+          <div class="post-card__bar" :style="{ background: p.node?.color || 'var(--accent)' }"></div>
+          <div class="post-card__vote">
+            <span class="font-display" style="font-size: 14px; font-weight: 600">{{ p.like_count }}</span>
+            <span style="font-size: 11px" class="text-4"><PhThumbsUp :size="12" /></span>
+          </div>
+          <div class="post-card__content">
+            <div class="post-card__top">
+              <h3 class="post-card__title">{{ p.title }}</h3>
+              <span class="pill" :style="{ background: (p.node?.color || '#c47a99') + '18', color: p.node?.color || '#c47a99' }">{{ p.node?.name }}</span>
             </div>
-            <div class="post-card__content">
-              <div class="post-card__top">
-                <h3 class="post-card__title">{{ p.title }}</h3>
-                <span class="pill" :style="{ background: (p.node?.color || '#c47a99') + '18', color: p.node?.color || '#c47a99' }">{{ p.node?.name }}</span>
-              </div>
-              <div class="post-card__meta text-4">
-                <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(p.created_at) }}</span>
-                <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ p.reply_count }}</span>
-              </div>
+            <div class="post-card__meta text-4">
+              <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(p.created_at) }}</span>
+              <span><PhChatCircle :size="12" style="vertical-align: -1px" /> {{ p.reply_count }}</span>
             </div>
           </div>
         </div>
-        <div v-else-if="!tabLoading.posts" class="empty-state card fade-up" style="padding: 32px">
-          <p class="text-3" style="font-size: 14px">暂无帖子</p>
-        </div>
-        <div v-if="userPosts.length > 0" style="padding: 12px 0; text-align: center">
-          <button v-if="tabHasMore.posts" class="btn btn--outline btn--sm" @click="loadTabMore('posts')" :disabled="tabLoadingMore.posts">
-            <PhCircleNotch v-if="tabLoadingMore.posts" :size="14" class="spin" />
-            <span v-else>加载更多</span>
-          </button>
-          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
-        </div>
       </div>
-
-      <!-- Likes tab -->
-      <div v-if="activeTab === 'likes'">
-        <div v-if="userLikes.length > 0">
-          <div v-for="(item, i) in userLikes" :key="item.post.code"
-            class="post-card card fade-up"
-            :style="{ animationDelay: (i * 40) + 'ms' }"
-            @click="$router.push({ name: 'PostDetail', params: { code: item.post.code } })"
-          >
-            <div class="post-card__bar" :style="{ background: item.post.node?.color || 'var(--accent)' }"></div>
-            <div class="post-card__content">
-              <div class="post-card__top">
-                <h3 class="post-card__title">{{ item.post.title }}</h3>
-                <span class="pill" :style="{ background: (item.post.node?.color || '#c47a99') + '18', color: item.post.node?.color || '#c47a99' }">{{ item.post.node?.name }}</span>
-              </div>
-              <div class="post-card__meta text-4">
-                <span>{{ item.post.user?.nickname || item.post.user?.username }}</span>
-                <span><PhClock :size="12" style="vertical-align: -1px" /> {{ formatTime(item.post.created_at) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-else-if="!tabLoading.likes" class="empty-state card fade-up" style="padding: 32px">
-          <p class="text-3" style="font-size: 14px">暂无点赞</p>
-        </div>
-        <div v-if="userLikes.length > 0" style="padding: 12px 0; text-align: center">
-          <button v-if="tabHasMore.likes" class="btn btn--outline btn--sm" @click="loadTabMore('likes')" :disabled="tabLoadingMore.likes">
-            <PhCircleNotch v-if="tabLoadingMore.likes" :size="14" class="spin" />
-            <span v-else>加载更多</span>
-          </button>
-          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
-        </div>
+      <div v-else-if="!postsLoading" class="empty-state card fade-up" style="padding: 32px">
+        <p class="text-3" style="font-size: 14px">暂无帖子</p>
       </div>
-
-      <!-- Followers tab -->
-      <div v-if="activeTab === 'followers'">
-        <div v-if="followers.length > 0" class="user-list">
-          <div v-for="f in followers" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { username: f.user.username } })">
-            <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
-            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
-          </div>
-        </div>
-        <div v-else-if="!tabLoading.followers" class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无粉丝</p></div>
-        <div v-if="followers.length > 0" style="padding: 12px 0; text-align: center">
-          <button v-if="tabHasMore.followers" class="btn btn--outline btn--sm" @click="loadTabMore('followers')" :disabled="tabLoadingMore.followers">
-            <PhCircleNotch v-if="tabLoadingMore.followers" :size="14" class="spin" />
-            <span v-else>加载更多</span>
-          </button>
-          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
-        </div>
-      </div>
-
-      <!-- Followings tab -->
-      <div v-if="activeTab === 'followings'">
-        <div v-if="followings.length > 0" class="user-list">
-          <div v-for="f in followings" :key="f.id" class="card user-list__item fade-up" @click="$router.push({ name: 'UserProfile', params: { username: f.user.username } })">
-            <div class="avatar avatar--sm">{{ (f.user.nickname || f.user.username || '?')[0].toUpperCase() }}</div>
-            <span class="font-display" style="font-size: 14px; font-weight: 500">{{ f.user.nickname || f.user.username }}</span>
-          </div>
-        </div>
-        <div v-else-if="!tabLoading.followings" class="empty-state card fade-up" style="padding: 32px"><p class="text-3" style="font-size: 14px">暂无关注</p></div>
-        <div v-if="followings.length > 0" style="padding: 12px 0; text-align: center">
-          <button v-if="tabHasMore.followings" class="btn btn--outline btn--sm" @click="loadTabMore('followings')" :disabled="tabLoadingMore.followings">
-            <PhCircleNotch v-if="tabLoadingMore.followings" :size="14" class="spin" />
-            <span v-else>加载更多</span>
-          </button>
-          <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
-        </div>
+      <div v-if="userPosts.length > 0" style="padding: 12px 0; text-align: center">
+        <button v-if="hasMore" class="btn btn--outline btn--sm" @click="loadMore" :disabled="loadingMore">
+          <PhCircleNotch v-if="loadingMore" :size="14" class="spin" />
+          <span v-else>加载更多</span>
+        </button>
+        <p v-else class="text-4" style="font-size: 12px">已经到底了</p>
       </div>
     </template>
 
@@ -185,16 +124,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { roleLabel } from '../utils/role'
-import { getUserProfile, listUserPosts, listUserLikes, getFollowers, getFollowings, toggleFollow } from '../api'
+import { getUserProfile, listUserPosts, toggleFollow } from '../api'
 import { formatTime } from '../utils/format'
+import { getCoverCSS } from '../config/coverThemes'
+import UserAvatar from '../components/UserAvatar.vue'
 import {
-  PhClock, PhNote, PhHeart, PhUserPlus, PhUsers, PhThumbsUp,
-  PhChatCircle, PhMagnifyingGlass, PhCircleNotch
+  PhClock, PhUserPlus, PhThumbsUp,
+  PhChatCircle, PhMagnifyingGlass, PhCircleNotch, PhShieldStar, PhGearSix
 } from '@phosphor-icons/vue'
 
 const route = useRoute()
@@ -204,20 +145,20 @@ const toast = useToast()
 const profile = ref(null)
 const loading = ref(true)
 const followed = ref(false)
-const activeTab = ref('posts')
 
-// Tab data
+// 封面背景 CSS 变量，供 cover/body 渐变使用
+const coverStyle = computed(() => {
+  if (!profile.value?.cover_theme) return {}
+  return { '--cover-bg': getCoverCSS(profile.value.cover_theme) }
+})
+
+// Posts state
 const userPosts = ref([])
-const userLikes = ref([])
-const followers = ref([])
-const followings = ref([])
-
-// Tab pagination state
-const tabPage = reactive({ posts: 1, likes: 1, followers: 1, followings: 1 })
-const tabHasMore = reactive({ posts: true, likes: true, followers: true, followings: true })
-const tabLoading = reactive({ posts: false, likes: false, followers: false, followings: false })
-const tabLoadingMore = reactive({ posts: false, likes: false, followers: false, followings: false })
-const tabTotal = reactive({ posts: 0, likes: 0, followers: 0, followings: 0 })
+const page = ref(1)
+const hasMore = ref(true)
+const postsLoading = ref(true)
+const loadingMore = ref(false)
+const total = ref(0)
 
 const PAGE_SIZE = 20
 
@@ -234,61 +175,35 @@ async function fetchAll() {
     return
   }
   loading.value = false
-  switchTab('posts')
+  loadPosts(true)
 }
 
-async function loadTab(tab, reset = true) {
-  const username = route.params.username
+async function loadPosts(reset = true) {
   if (reset) {
-    tabPage[tab] = 1
-    tabHasMore[tab] = true
-    tabLoading[tab] = true
+    page.value = 1
+    hasMore.value = true
+    postsLoading.value = true
   } else {
-    tabLoadingMore[tab] = true
+    loadingMore.value = true
   }
 
   try {
-    const params = { page: tabPage[tab], page_size: PAGE_SIZE }
-    if (tab === 'posts') {
-      const res = await listUserPosts(username, params)
-      const list = res.data?.list || []
-      if (reset) userPosts.value = list; else userPosts.value.push(...list)
-      tabTotal.posts = res.data?.total || 0
-      tabHasMore.posts = userPosts.value.length < tabTotal.posts
-    } else if (tab === 'likes') {
-      const res = await listUserLikes(username, params)
-      const list = res.data?.list || []
-      if (reset) userLikes.value = list; else userLikes.value.push(...list)
-      tabTotal.likes = res.data?.total || 0
-      tabHasMore.likes = userLikes.value.length < tabTotal.likes
-    } else if (tab === 'followers') {
-      const res = await getFollowers(username, params)
-      const list = res.data?.list || []
-      if (reset) followers.value = list; else followers.value.push(...list)
-      tabTotal.followers = res.data?.total || 0
-      tabHasMore.followers = followers.value.length < tabTotal.followers
-    } else if (tab === 'followings') {
-      const res = await getFollowings(username, params)
-      const list = res.data?.list || []
-      if (reset) followings.value = list; else followings.value.push(...list)
-      tabTotal.followings = res.data?.total || 0
-      tabHasMore.followings = followings.value.length < tabTotal.followings
-    }
+    const params = { page: page.value, page_size: PAGE_SIZE }
+    const res = await listUserPosts(route.params.username, params)
+    const list = res.data?.list || []
+    if (reset) userPosts.value = list; else userPosts.value.push(...list)
+    total.value = res.data?.total || 0
+    hasMore.value = userPosts.value.length < total.value
   } catch (e) { toast.error(e.message) }
   finally {
-    tabLoading[tab] = false
-    tabLoadingMore[tab] = false
+    postsLoading.value = false
+    loadingMore.value = false
   }
 }
 
-function switchTab(tab) {
-  activeTab.value = tab
-  loadTab(tab, true)
-}
-
-function loadTabMore(tab) {
-  tabPage[tab]++
-  loadTab(tab, false)
+function loadMore() {
+  page.value++
+  loadPosts(false)
 }
 
 async function handleFollow() {
@@ -313,36 +228,48 @@ watch(() => route.params.username, fetchAll)
 
 <style scoped>
 .profile-header {
-  display: flex; align-items: center; justify-content: space-between; padding: 24px;
+  display: flex; flex-direction: column; padding: 0; overflow: hidden;
 }
-.profile-header__left { display: flex; align-items: center; gap: 16px; }
+.profile-header__cover {
+  height: 100px; width: 100%; flex-shrink: 0;
+  background: var(--cover-bg, transparent);
+}
+.profile-header__body {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px;
+  background-image: linear-gradient(to bottom, transparent, var(--bg-card)), var(--cover-bg, none);
+}
+.profile-header__left { display: flex; align-items: center; gap: 16px; min-width: 0; flex: 1; }
+.profile-header__info { min-width: 0; }
 .profile-header__name { font-size: 22px; margin-bottom: 4px; }
-.profile-header__meta { display: flex; align-items: center; gap: 10px; }
+.profile-header__meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.profile-header__motto {
+  margin-top: 6px; font-size: 13px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.profile-header__right {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 14px; flex-shrink: 0;
+}
+
+.profile-header__stats { display: flex; gap: 20px; }
+.profile-header__stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 48px;
+}
+.profile-header__stat-value { font-size: 18px; font-weight: 700; }
+.profile-header__stat-label { font-size: 12px; }
 
 .user-profile {
   display: flex; flex-direction: column; gap: 16px;
 }
 
-.profile__stats {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+@media (max-width: 720px) {
+  .profile-header__body { flex-direction: column; gap: 18px; align-items: flex-start; }
+  .profile-header__right { align-items: flex-start; width: 100%; }
+  .profile-header__stats { width: 100%; justify-content: space-between; gap: 8px; }
 }
-.profile-stat {
-  padding: 20px; text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-}
-.profile-stat__icon { margin-bottom: 4px; }
-.profile-stat__value { font-size: 24px; font-weight: 700; }
-.profile-stat__label { font-size: 12px; }
-
-.user-list { display: flex; flex-direction: column; gap: 8px; }
-.user-list__item {
-  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-  cursor: pointer; transition: box-shadow var(--duration-medium-2) var(--ease-standard);
-}
-.user-list__item:hover { box-shadow: var(--shadow-2); }
 
 @media (max-width: 600px) {
-  .profile-header { flex-direction: column; gap: 16px; align-items: flex-start; }
-  .profile__stats { grid-template-columns: 1fr; }
+  .profile-header__stats { gap: 6px; }
+  .profile-header__stat { min-width: 0; flex: 1; }
+  .profile-header__stat-value { font-size: 16px; }
 }
 </style>

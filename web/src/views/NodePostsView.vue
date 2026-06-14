@@ -10,6 +10,14 @@
         <h1 class="font-display" style="font-size: 22px">{{ node.name }}</h1>
         <p class="text-3" style="font-size: 13px">{{ node.desc }}</p>
         <span class="text-4" style="font-size: 12px"><PhNote :size="12" style="vertical-align: -1px" /> {{ node.post_count || 0 }} 帖子</span>
+        <div v-if="node.moderators?.length" style="display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap">
+          <span class="text-4" style="font-size: 12px; display: flex; align-items: center; gap: 3px"><PhShieldStar :size="12" /> 版主</span>
+          <router-link
+            v-for="m in node.moderators" :key="m.id"
+            :to="{ name: 'UserProfile', params: { username: m.username } }"
+            class="text-3" style="font-size: 12px; text-decoration: none; color: var(--accent)"
+          >{{ m.nickname || m.username }}</router-link>
+        </div>
       </div>
     </div>
 
@@ -94,7 +102,7 @@ import { getNode, getNodePosts, toggleLikePost } from '../api'
 import { formatTime } from '../utils/format'
 import {
   PhStack, PhNote, PhClock, PhChatCircle, PhEye, PhThumbsUp,
-  PhPencilSimpleLine, PhCircleNotch
+  PhPencilSimpleLine, PhCircleNotch, PhShieldStar
 } from '@phosphor-icons/vue'
 
 const route = useRoute()

@@ -22,7 +22,7 @@
           :class="{ 'chat-item--active': activeChat === i }"
           @click="activeChat = i"
         >
-          <div class="avatar avatar--sm">{{ chat.name[0] }}</div>
+          <UserAvatar :name="chat.name" size="sm" />
           <div class="chat-item__content">
             <div class="chat-item__top">
               <span class="chat-item__name">{{ chat.name }}</span>
@@ -36,7 +36,7 @@
 
       <div class="messages__chat card">
         <div class="messages__chat-header">
-          <div class="avatar avatar--sm">{{ sampleChats[activeChat]?.name[0] }}</div>
+          <UserAvatar :name="sampleChats[activeChat]?.name" size="sm" />
           <span class="font-display" style="font-size: 14px; font-weight: 600">
             {{ sampleChats[activeChat]?.name }}
           </span>
@@ -61,6 +61,7 @@
 <script setup>
 import { ref } from 'vue'
 import { PhEnvelopeSimple, PhChatsCircle, PhPaperPlaneRight } from '@phosphor-icons/vue'
+import UserAvatar from '../components/UserAvatar.vue'
 
 const activeChat = ref(0)
 

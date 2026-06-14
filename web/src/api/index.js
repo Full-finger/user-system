@@ -83,6 +83,15 @@ export function bindEmail(data) {
   return api.put('/profile/email', data)
 }
 
+// ---- Moderator ----
+export function getModeratedNodes() {
+  return api.get('/moderator/nodes')
+}
+
+export function appointModerator(data) {
+  return api.post('/admin/moderators', data)
+}
+
 // ---- Admin ----
 export function adminStats() {
   return api.get('/admin/stats')
