@@ -2,7 +2,24 @@
 
 ![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white) ![Vue](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white) ![Echo](https://img.shields.io/badge/Echo-4.x-000000?logo=labstack&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)
 
-Go 用户系统，包含用户认证、帖子、节点、关注、点赞等功能。
+Go 用户系统，包含用户认证、帖子、节点、关注、点赞、评论、@提及、版主与管理后台等功能。
+
+## 功能概览
+
+- **用户认证**：用户名/邮箱密码登录、邮箱验证码登录、注册、绑定邮箱、游客 JWT
+- **帖子与节点**：发帖、节点分类、点赞、关注时间线（Feed）
+- **评论与回复**：楼中楼回复、评论点赞、@提及补全、PoW 反垃圾
+- **社交关系**：关注/取消关注、粉丝列表、用户主页
+- **角色体系**：6 级角色（Guest → User → VerifiedUser → Moderator → Admin → SuperAdmin），权限判断下沉到 Service 层
+- **管理后台**：数据概览、用户/帖子/评论/节点管理、任命版主
+
+> 角色体系与鉴权流程详见 [docs/role-system.md](docs/role-system.md)。
+
+### 鉴权与限流
+
+- 所有 API 统一走 `AuthMiddleware`：无 Token 自动赋予 Guest 身份，解析失败降级为 Guest。
+- 权限判断全部在 Service 层通过 `UserContext.RequireRole()` 完成，路由层不再做权限区分。
+- 限流优先级：`user_id > device_id > IP`（基于 Redis），游客可通过 `X-Device-ID` 头或 `POST /api/guest-token` 获取 Guest JWT 实现跨请求追踪。
 
 ## 前置依赖
 
@@ -97,4 +114,8 @@ make arch-check    # 生成 docs/arch-report.md 报告
 
 ## API 文档
 
-见 [docs/openapi.yaml](docs/openapi.yaml)，可用 Swagger UI 等工具查看。
+见 [docs/openapi.yaml](docs/openapi.yaml)（OpenAPI 3.0，覆盖 40+ 端点），可用 Swagger UI、Redoc 等工具查看。
+
+设计文档：
+- [角色系统](docs/role-system.md) — 6 级角色层级、UserContext、Guest JWT、鉴权流程
+- [管理后台](docs/admin-system.md) — 后台 Tab 页与 Admin API 设计

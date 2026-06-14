@@ -534,7 +534,7 @@ if c.GuestJWT.Expire <= 0 {
 本次重构为 **Breaking Change**：
 - JWT payload 中 `role` 字段从字符串变为数字
 - 所有已签发的用户 JWT 在部署后失效，用户需要重新登录
-- API 响应中 `role` 字段从字符串变为数字（或保持字符串兼容，看前端偏好）
+- API 响应中 `role` 字段：**对外仍保持字符串**（`Role.String()` 序列化为 `guest`/`user`/`verified_user`/`moderator`/`admin`/`super_admin`），前端无需感知数字编码；数据库中存储为 `int`
 
 ### 12.2 向后兼容策略（可选）
 

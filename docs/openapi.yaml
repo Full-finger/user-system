@@ -40,6 +40,33 @@ paths:
                     example: ok
 
   # ── 认证 ──────────────────────────────────────────────
+  /api/guest-token:
+    post:
+      tags: [认证]
+      summary: 获取游客 JWT
+      description: |
+        未登录用户可凭 device_id 换取 Guest JWT，用于跨请求追踪同一游客身份。
+        也可直接在请求头携带 `X-Device-ID`，中间件会兜底生成。
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuestTokenRequest"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LoginResponse"
+
   /api/check-username:
     get:
       tags: [认证]
@@ -176,6 +203,92 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  # ── 提及 / 反垃圾 ─────────────────────────────────────
+  /api/comment-challenge:
+    get:
+      tags: [评论]
+      summary: 获取评论反垃圾 challenge
+      description: |
+        评论发表前先获取 PoW challenge（nonce + timestamp + difficulty + honeypot_field）。
+        创建评论时需提交对应的 `_ts`/`_nonce`/`_suffix` 以及蜜罐字段。
+      security:
+        - BearerToken: []
+        - {}
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CommentChallenge"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/mention-cache:
+    get:
+      tags: [用户]
+      summary: 获取 @提及补全候选用户
+      description: |
+        返回当前用户可用于 @补全的用户列表。
+        `sources` 可选值：`following`/`followers`/`admins`/`moderators`（逗号分隔，默认全部）；
+        `node_id` 可选，用于返回该节点版主。
+      parameters:
+        - name: sources
+          in: query
+          schema:
+            type: string
+          example: "following,followers,admins,moderators"
+        - name: node_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/MentionSuggestion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ── 版主 ──────────────────────────────────────────────
+  /api/moderator/nodes:
+    get:
+      tags: [节点]
+      summary: 获取当前版主管辖的节点列表
+      description: 需要 Moderator 及以上权限。
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/NodeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # ── 用户 ──────────────────────────────────────────────
   /api/profile:
@@ -738,6 +851,28 @@ paths:
           $ref: "#/components/responses/NotFound"
 
   # ── 管理员 ────────────────────────────────────────────
+  /api/admin/stats:
+    get:
+      tags: [管理员]
+      summary: 管理后台统计概览
+      description: 返回用户数、帖子数、节点数、评论数。需要 Admin 及以上权限。
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/AdminStatsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/admin/users:
     get:
       tags: [管理员]
@@ -843,10 +978,78 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/admin/moderators:
+    post:
+      tags: [管理员]
+      summary: 任命版主
+      description: 为指定用户授予一个或多个节点的版主权限。需要 Admin 及以上权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointModeratorRequest"
+      responses:
+        "200":
+          description: 任命成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/posts:
+    get:
+      tags: [管理员]
+      summary: 管理员帖子列表
+      description: 支持关键词搜索和按节点筛选。需要 Admin 及以上权限。
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: keyword
+          in: query
+          description: 标题搜索关键词
+          schema:
+            type: string
+        - name: node_id
+          in: query
+          description: 节点 ID 筛选
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/PostListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /api/admin/posts/{code}:
     delete:
       tags: [管理员]
-      summary: 管理员删除帖子
+      summary: 管理员/版主删除帖子
+      description: 管理员可删除任意帖子；版主仅能删除自己管辖节点下的帖子。
       parameters:
         - $ref: "#/components/parameters/PostCode"
       responses:
@@ -856,6 +1059,143 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/comments:
+    get:
+      tags: [管理员]
+      summary: 管理员评论列表
+      description: 支持内容关键词搜索。需要 Admin 及以上权限。
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: keyword
+          in: query
+          description: 内容搜索关键词
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/CommentListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/admin/comments/{id}:
+    delete:
+      tags: [管理员]
+      summary: 管理员删除评论
+      description: 软删除。需要 Admin 及以上权限。
+      parameters:
+        - $ref: "#/components/parameters/CommentId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/admin/nodes:
+    post:
+      tags: [管理员]
+      summary: 创建节点
+      description: 需要 Admin 及以上权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNodeRequest"
+      responses:
+        "200":
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NodeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/admin/nodes/{id}:
+    put:
+      tags: [管理员]
+      summary: 更新节点
+      description: 所有字段可选。需要 Admin 及以上权限。
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNodeRequest"
+      responses:
+        "200":
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/NodeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [管理员]
+      summary: 删除节点
+      description: 仅允许删除空节点（无帖子的节点）。需要 Admin 及以上权限。
+      parameters:
+        - $ref: "#/components/parameters/NodeId"
+      responses:
+        "200":
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -980,7 +1320,8 @@ components:
           example: 保持热爱
         role:
           type: string
-          enum: [admin, user]
+          enum: [guest, user, verified_user, moderator, admin, super_admin]
+          description: 6 级角色层级
           example: user
         created_at:
           type: string
@@ -1060,7 +1401,7 @@ components:
           example: 张三
         role:
           type: string
-          enum: [admin, user]
+          enum: [guest, user, verified_user, moderator, admin, super_admin]
           example: user
         created_at:
           type: string
@@ -1086,6 +1427,23 @@ components:
           type: string
           example: "eyJhbGciOiJIUzI1NiIs..."
 
+    AdminStatsResponse:
+      type: object
+      description: 管理后台统计概览
+      properties:
+        user_count:
+          type: integer
+          example: 100
+        post_count:
+          type: integer
+          example: 500
+        comment_count:
+          type: integer
+          example: 1200
+        node_count:
+          type: integer
+          example: 8
+
     # ── Auth Requests ───────────────────────────────────
     RegisterRequest:
       type: object
@@ -1094,7 +1452,8 @@ components:
         username:
           type: string
           minLength: 3
-          maxLength: 50
+          maxLength: 30
+          description: 字母、数字、下划线
           example: zhangsan
         password:
           type: string
@@ -1164,6 +1523,7 @@ components:
 
     UpdateProfileRequest:
       type: object
+      description: 所有字段可选，普通用户不能修改自己的角色。
       properties:
         password:
           type: string
@@ -1173,9 +1533,20 @@ components:
         nickname:
           type: string
           example: 张三
+        cover_theme:
+          type: string
+          nullable: true
+          description: 头图主题 key（nil 不更新；"" 清空；非空须为合法 key）
+          example: aurora
+        motto:
+          type: string
+          nullable: true
+          description: 座右铭（nil 不更新；"" 清空；非空为座右铭内容）
+          example: 保持热爱
 
     UpdateUserRequest:
       type: object
+      description: 所有字段可选，管理员可修改角色。
       properties:
         password:
           type: string
@@ -1187,9 +1558,19 @@ components:
           example: 张三
         role:
           type: string
-          enum: [admin, user]
-          description: 用户角色
+          enum: [user, verified_user, moderator, admin, super_admin]
+          description: 用户角色（管理员可设置）
           example: admin
+        cover_theme:
+          type: string
+          nullable: true
+          description: 头图主题 key（nil 不更新；"" 清空；非空须为合法 key）
+          example: aurora
+        motto:
+          type: string
+          nullable: true
+          description: 座右铭（nil 不更新；"" 清空；非空为座右铭内容）
+          example: 保持热爱
 
     # ── Post ────────────────────────────────────────────
     CreatePostRequest:
@@ -1332,6 +1713,79 @@ components:
           example: 20
 
     # ── Node ────────────────────────────────────────────
+    AppointModeratorRequest:
+      type: object
+      required: [user_id, node_ids]
+      properties:
+        user_id:
+          type: integer
+          example: 5
+        node_ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          example: [1, 2]
+
+    CreateNodeRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "技术"
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: "tech"
+        desc:
+          type: string
+          maxLength: 200
+          example: "技术相关讨论"
+        color:
+          type: string
+          description: 长度为 7 的颜色 hex
+          example: "#3b82f6"
+        icon:
+          type: string
+          maxLength: 50
+          example: "PhCode"
+        sort_order:
+          type: integer
+          example: 1
+
+    UpdateNodeRequest:
+      type: object
+      description: 所有字段可选。
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          nullable: true
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 50
+          nullable: true
+        desc:
+          type: string
+          maxLength: 200
+          nullable: true
+        color:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          maxLength: 50
+          nullable: true
+        sort_order:
+          type: integer
+          nullable: true
+
     NodeResponse:
       type: object
       properties:
@@ -1378,6 +1832,9 @@ components:
         nickname:
           type: string
           example: 张三
+        avatar_url:
+          type: string
+          example: https://www.gravatar.com/avatar/xxx
 
     FollowResponse:
       type: object
@@ -1422,6 +1879,55 @@ components:
         username:
           type: string
           example: lisi
+        nickname:
+          type: string
+          example: 李四
+        avatar_url:
+          type: string
+          example: https://www.gravatar.com/avatar/xxx
+
+    MentionSuggestion:
+      type: object
+      description: "@提及补全候选用户"
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          example: lisi
+        nickname:
+          type: string
+          example: 李四
+
+    GuestTokenRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+          description: 设备标识（由前端生成，不传则后端兜底生成）
+          example: "abc123def456"
+
+    CommentChallenge:
+      type: object
+      description: 评论反垃圾 challenge
+      properties:
+        nonce:
+          type: string
+          example: "a1b2c3d4e5f6"
+        timestamp:
+          type: integer
+          format: int64
+          description: 毫秒时间戳
+          example: 1700000000000
+        difficulty:
+          type: string
+          description: PoW 难度（前导零数量）
+          example: "4"
+        honeypot_field:
+          type: string
+          description: 动态蜜罐字段名（提交评论时需带上该字段）
+          example: "website"
 
     # ── Comment ─────────────────────────────────────────
     CreateCommentRequest:

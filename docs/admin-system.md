@@ -1,7 +1,8 @@
-# 管理后台重构需求文档
+# 管理后台功能文档
 
 > 创建时间：2026-06-12
-> 状态：规划中
+> 最后更新：2026-06-14
+> 状态：已完成
 
 ## 1. 概述
 
@@ -26,35 +27,41 @@
 
 ### 2.3 文件结构
 
+前端实际采用 `views/admin/` 下分页面组件实现（非 `components/admin/*Tab`）：
+
 ```
 web/src/views/AdminView.vue              — Tab 布局容器
-web/src/components/admin/AdminStatsTab.vue    — 数据概览
-web/src/components/admin/AdminUsersTab.vue    — 用户管理（从原 AdminView 提取）
-web/src/components/admin/AdminPostsTab.vue    — 帖子管理
-web/src/components/admin/AdminCommentsTab.vue — 评论管理
-web/src/components/admin/AdminNodesTab.vue    — 节点管理
+web/src/views/admin/AdminDashboard.vue   — 数据概览
+web/src/views/admin/AdminUsers.vue       — 用户管理（含编辑角色、删除）
+web/src/views/admin/AdminPosts.vue       — 帖子管理（搜索、按节点筛选、删除）
+web/src/views/admin/AdminComments.vue    — 评论管理（搜索、删除）
+web/src/views/admin/AdminNodes.vue       — 节点管理（创建/编辑/删除）
+web/src/api/index.js                     — 后台 API 封装
 ```
 
 ## 3. 后端 API 设计
 
-### 3.1 已有的 Admin API
+### 3.1 Admin API 全量
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/admin/users` | 用户列表 |
+| GET | `/admin/stats` | 数据概览（用户/帖子/节点/评论数） |
+| GET | `/admin/users` | 用户列表（分页） |
 | GET | `/admin/users/:id` | 用户详情 |
-| PUT | `/admin/users/:id` | 编辑用户 |
-| DELETE | `/admin/users/:id` | 删除用户 |
+| PUT | `/admin/users/:id` | 编辑用户（含角色） |
+| DELETE | `/admin/users/:id` | 删除用户（软删除） |
 | POST | `/admin/moderators` | 任命版主 |
-| DELETE | `/admin/posts/:code` | 管理员删帖 |
+| GET | `/admin/posts` | 帖子列表（支持 keyword、node_id 筛选） |
+| DELETE | `/admin/posts/:code` | 删除帖子（管理员全局 / 版主仅管辖节点） |
+| GET | `/admin/comments` | 评论列表（支持 keyword 搜索） |
+| DELETE | `/admin/comments/:id` | 删除评论（软删除） |
+| POST | `/admin/nodes` | 创建节点 |
+| PUT | `/admin/nodes/:id` | 更新节点 |
+| DELETE | `/admin/nodes/:id` | 删除节点（仅空节点） |
 
-### 3.2 需新增的 API
+### 3.2 各接口请求/响应说明
 
-#### 数据概览
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/admin/stats` | 返回统计数据（用户数/帖子数/节点数/评论数） |
+#### 数据概览 `GET /admin/stats`
 
 响应示例：
 ```json
@@ -69,34 +76,24 @@ web/src/components/admin/AdminNodesTab.vue    — 节点管理
 }
 ```
 
-#### 帖子管理
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/admin/posts` | 管理员帖子列表（支持分页、搜索关键词、按节点筛选） |
+#### 帖子管理 `GET /admin/posts`
 
 查询参数：`page`, `page_size`, `keyword`(标题搜索), `node_id`(节点筛选)
 
-响应与 `GET /posts` 类似，但额外包含作者信息和节点信息。
+响应与 `GET /posts` 一致（`PostListResponse`）。
 
 #### 评论管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/admin/comments` | 管理员评论列表（支持分页、搜索） |
-| DELETE | `/admin/comments/:id` | 管理员删除评论 |
-
-查询参数：`page`, `page_size`, `keyword`(内容搜索)
+- `GET /admin/comments` — 查询参数：`page`, `page_size`, `keyword`(内容搜索)
+- `DELETE /admin/comments/:id` — 软删除
 
 #### 节点管理
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/admin/nodes` | 创建节点 |
-| PUT | `/admin/nodes/:id` | 编辑节点 |
-| DELETE | `/admin/nodes/:id` | 删除节点（仅允许删除空节点） |
+- `POST /admin/nodes` — 创建节点
+- `PUT /admin/nodes/:id` — 编辑节点（所有字段可选）
+- `DELETE /admin/nodes/:id` — 删除节点（仅允许删除空节点）
 
-创建/编辑请求体：
+创建请求体（`CreateNodeRequest`）：
 ```json
 {
   "name": "节点名称",
@@ -107,6 +104,8 @@ web/src/components/admin/AdminNodesTab.vue    — 节点管理
   "sort_order": 1
 }
 ```
+
+更新请求体（`UpdateNodeRequest`）：同上，但所有字段均可选（`*string` / `*int`）。
 
 ## 4. 后端实现细节
 
@@ -148,18 +147,18 @@ web/src/components/admin/AdminNodesTab.vue    — 节点管理
 
 - `internal/router/router.go` — 注册新路由
 
-## 5. 实施顺序
+## 5. 实施记录
 
 1. ✅ 编写需求文档
-2. ⬜ 后端：Repository 层新增方法
-3. ⬜ 后端：Service 层新增方法
-4. ⬜ 后端：Controller/Param 层新增方法
-5. ⬜ 后端：Router 注册新路由
-6. ⬜ 前端：api/index.js 补充新接口
-7. ⬜ 前端：重构 AdminView.vue 为 Tab 布局
-8. ⬜ 前端：实现 AdminStatsTab
-9. ⬜ 前端：提取 AdminUsersTab（从现有代码迁移）
-10. ⬜ 前端：实现 AdminPostsTab
-11. ⬜ 前端：实现 AdminCommentsTab
-12. ⬜ 前端：实现 AdminNodesTab
-13. ⬜ 编译测试
+2. ✅ 后端：Repository 层新增方法
+3. ✅ 后端：Service 层新增方法
+4. ✅ 后端：Controller/Param 层新增方法
+5. ✅ 后端：Router 注册新路由
+6. ✅ 前端：api/index.js 补充新接口
+7. ✅ 前端：重构 AdminView.vue 为 Tab 布局
+8. ✅ 前端：实现 AdminDashboard（数据概览）
+9. ✅ 前端：迁移 AdminUsers（用户管理）
+10. ✅ 前端：实现 AdminPosts（帖子管理）
+11. ✅ 前端：实现 AdminComments（评论管理）
+12. ✅ 前端：实现 AdminNodes（节点管理）
+13. ✅ 编译测试通过
