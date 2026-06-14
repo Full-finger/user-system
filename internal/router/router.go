@@ -58,7 +58,10 @@ func Setup(e *echo.Echo, userCtrl *controller.UserController, postCtrl *controll
 	api.PUT("/users/:username/follow", followCtrl.ToggleFollow)
 	api.GET("/mention-cache", mentionCtrl.GetMentionCache)
 
-	// 管理（Service 层 RequireRole(Admin/SuperAdmin)）
+	// 版主（Service 层 RequireRole(Moderator)）
+	api.GET("/moderator/nodes", userCtrl.GetModeratedNodes)
+
+	// 管理（Service 层 RequireRole(Admin/SuperAdmin)，部分接口版主可用）
 	api.GET("/admin/stats", userCtrl.AdminStats)
 	api.GET("/admin/users", userCtrl.ListUsers)
 	api.GET("/admin/users/:id", userCtrl.GetUser)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"regexp"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
@@ -12,14 +13,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// urlPattern 检测评论中的 URL。
+var urlPattern = regexp.MustCompile(`(?i)https?://\S+|www\.\S+`)
+
 // CommentService 评论业务服务。
 type CommentService struct {
 	commentRepo     repository.CommentRepository
 	commentLikeRepo repository.CommentLikeRepository
 	postRepo        repository.PostRepository
 	mentionRepo     repository.MentionRepository
-	nodeSvc         *NodeService
-	txDB            *gorm.DB
+	nodeModRepo     repository.NodeModeratorRepository
+	mentionSvc      MentionParser
+	txRunner        TransactionRunner
 	log             *zap.Logger
 }
 
@@ -28,8 +33,9 @@ func NewCommentService(
 	commentLikeRepo repository.CommentLikeRepository,
 	postRepo repository.PostRepository,
 	mentionRepo repository.MentionRepository,
-	nodeSvc *NodeService,
-	txDB *gorm.DB,
+	nodeModRepo repository.NodeModeratorRepository,
+	mentionSvc MentionParser,
+	txRunner TransactionRunner,
 	log *zap.Logger,
 ) *CommentService {
 	return &CommentService{
@@ -37,8 +43,9 @@ func NewCommentService(
 		commentLikeRepo: commentLikeRepo,
 		postRepo:        postRepo,
 		mentionRepo:     mentionRepo,
-		nodeSvc:         nodeSvc,
-		txDB:            txDB,
+		nodeModRepo:     nodeModRepo,
+		mentionSvc:      mentionSvc,
+		txRunner:        txRunner,
 		log:             log,
 	}
 }
@@ -47,6 +54,15 @@ func NewCommentService(
 func (s *CommentService) CreateComment(ctx context.Context, uc *auth.UserContext, postCode string, content string, parentID *uint) (*model.Comment, map[uint]bool, error) {
 	if err := uc.RequireRole(auth.RoleUser); err != nil {
 		return nil, nil, err
+	}
+
+	// 认证用户门槛：低于认证用户的角色不能在评论中包含链接
+	if uc.Role.Level() < auth.RoleVerifiedUser.Level() && urlPattern.MatchString(content) {
+		s.log.Warn("低角色用户评论包含 URL",
+			zap.Uint("user_id", uc.UserID),
+			zap.String("role", uc.Role.String()),
+		)
+		return nil, nil, apperror.BadRequest("认证用户及以上才能在评论中包含链接")
 	}
 
 	post, err := s.postRepo.FindByCode(ctx, postCode)
@@ -80,7 +96,7 @@ func (s *CommentService) CreateComment(ctx context.Context, uc *auth.UserContext
 		comment.ReplyToID = &parent.UserID
 	}
 
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Create(comment).Error; err != nil {
 			return err
 		}
@@ -92,32 +108,46 @@ func (s *CommentService) CreateComment(ctx context.Context, uc *auth.UserContext
 	}
 
 	// 异步解析 @提及
-	go s.nodeSvc.ParseAndSaveCommentMentions(context.Background(), post.ID, comment.ID, content)
+	go s.mentionSvc.ParseAndSaveCommentMentions(context.Background(), post.ID, comment.ID, content)
 
 	// 重新加载带 User 的评论
-	comment, _ = s.commentRepo.FindByID(ctx, comment.ID)
+	comment, reloadErr := s.commentRepo.FindByID(ctx, comment.ID)
+	if reloadErr != nil {
+		s.log.Error("创建评论后重新加载失败", zap.Uint("commentID", comment.ID), zap.Error(reloadErr))
+	}
 	likedMap := s.buildLikedMap(ctx, uc, []uint{comment.ID})
 	return comment, likedMap, nil
 }
 
+// CommentListResult 评论列表查询结果。
+type CommentListResult struct {
+	Comments      []model.Comment
+	Total         int64
+	LikedMap      map[uint]bool
+	ReplyMap      map[uint][]model.Comment
+	ReplyLikedMap map[uint]map[uint]bool
+	MentionMap    map[uint][]model.Mention
+	ReplyCountMap map[uint]int64
+}
+
 // ListComments 获取帖子的顶级评论列表（带前 N 条回复）。
-func (s *CommentService) ListComments(ctx context.Context, uc *auth.UserContext, postCode string, page, size, replyPreview int) ([]model.Comment, int64, map[uint]bool, map[uint][]model.Comment, map[uint]map[uint]bool, map[uint][]model.Mention, map[uint]int64, error) {
+func (s *CommentService) ListComments(ctx context.Context, uc *auth.UserContext, postCode string, page, size, replyPreview int) (*CommentListResult, error) {
 	post, err := s.postRepo.FindByCode(ctx, postCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, nil, nil, nil, nil, nil, apperror.NotFound("帖子不存在")
+			return nil, apperror.NotFound("帖子不存在")
 		}
-		return nil, 0, nil, nil, nil, nil, nil, apperror.Internal("查询失败")
+		return nil, apperror.Internal("查询失败")
 	}
 
 	comments, total, err := s.commentRepo.FindByPostID(ctx, post.ID, page, size)
 	if err != nil {
 		s.log.Error("查询评论列表失败", zap.Error(err))
-		return nil, 0, nil, nil, nil, nil, nil, apperror.Internal("查询失败")
+		return nil, apperror.Internal("查询失败")
 	}
 
 	if len(comments) == 0 {
-		return comments, total, nil, nil, nil, nil, nil, nil
+		return &CommentListResult{Comments: comments, Total: total}, nil
 	}
 
 	// 收集所有评论 ID（顶级 + 回复预览）
@@ -144,7 +174,10 @@ func (s *CommentService) ListComments(ctx context.Context, uc *auth.UserContext,
 	likedMap := s.buildLikedMap(ctx, uc, allIDs)
 
 	// 获取评论提及
-	mentionMap, _ := s.mentionRepo.FindByCommentIDs(ctx, allIDs)
+	mentionMap, mentionErr := s.mentionRepo.FindByCommentIDs(ctx, allIDs)
+	if mentionErr != nil {
+		s.log.Warn("查询评论提及失败", zap.Error(mentionErr))
+	}
 
 	// 构建 reply likedMap
 	replyLikedMap := make(map[uint]map[uint]bool)
@@ -155,9 +188,20 @@ func (s *CommentService) ListComments(ctx context.Context, uc *auth.UserContext,
 
 	// 获取每个顶级评论的回复数
 	parentIDs := commentIDs(comments)
-	replyCountMap, _ := s.commentRepo.CountReplies(ctx, parentIDs)
+	replyCountMap, countErr := s.commentRepo.CountReplies(ctx, parentIDs)
+	if countErr != nil {
+		s.log.Warn("查询回复数失败", zap.Error(countErr))
+	}
 
-	return comments, total, likedMap, replyMap, replyLikedMap, mentionMap, replyCountMap, nil
+	return &CommentListResult{
+		Comments:      comments,
+		Total:         total,
+		LikedMap:      likedMap,
+		ReplyMap:      replyMap,
+		ReplyLikedMap: replyLikedMap,
+		MentionMap:    mentionMap,
+		ReplyCountMap: replyCountMap,
+	}, nil
 }
 
 // ListReplies 获取某评论的回复列表。
@@ -178,7 +222,10 @@ func (s *CommentService) ListReplies(ctx context.Context, uc *auth.UserContext, 
 
 	ids := commentIDs(replies)
 	likedMap := s.buildLikedMap(ctx, uc, ids)
-	mentionMap, _ := s.mentionRepo.FindByCommentIDs(ctx, ids)
+	mentionMap, mentionErr := s.mentionRepo.FindByCommentIDs(ctx, ids)
+	if mentionErr != nil {
+		s.log.Warn("查询回复提及失败", zap.Error(mentionErr))
+	}
 	return replies, total, likedMap, mentionMap, nil
 }
 
@@ -203,8 +250,8 @@ func (s *CommentService) ToggleCommentLike(ctx context.Context, uc *auth.UserCon
 	}
 
 	if liked {
-		if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := s.commentLikeRepo.Delete(ctx, uc.UserID, commentID); err != nil {
+		if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+			if err := tx.Where("user_id = ? AND comment_id = ?", uc.UserID, commentID).Delete(&model.CommentLike{}).Error; err != nil {
 				return err
 			}
 			return tx.Model(&model.Comment{}).Where("id = ? AND like_count > 0", commentID).
@@ -216,8 +263,8 @@ func (s *CommentService) ToggleCommentLike(ctx context.Context, uc *auth.UserCon
 		return false, nil
 	}
 
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.commentLikeRepo.Create(ctx, &model.CommentLike{UserID: uc.UserID, CommentID: commentID}); err != nil {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+		if err := tx.Create(&model.CommentLike{UserID: uc.UserID, CommentID: commentID}).Error; err != nil {
 			return err
 		}
 		return tx.Model(&model.Comment{}).Where("id = ?", commentID).
@@ -234,11 +281,29 @@ func (s *CommentService) GetCommentMentions(ctx context.Context, commentIDs []ui
 	return s.mentionRepo.FindByCommentIDs(ctx, commentIDs)
 }
 
-// AdminListComments 管理员评论列表（支持搜索）。
+// AdminListComments 管理员/版主评论列表（支持搜索）。版主只能看管辖节点下的评论。
 func (s *CommentService) AdminListComments(ctx context.Context, uc *auth.UserContext, keyword string, page, size int) ([]model.Comment, int64, error) {
-	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+	if err := uc.RequireRole(auth.RoleModerator); err != nil {
 		return nil, 0, err
 	}
+	// 版主：只返回管辖节点下的评论
+	if uc.Role == auth.RoleModerator {
+		nodeIDs, err := s.nodeModRepo.FindByUserID(ctx, uc.UserID)
+		if err != nil {
+			s.log.Error("查询版主管辖节点失败", zap.Uint("userID", uc.UserID), zap.Error(err))
+			return nil, 0, apperror.Internal("查询失败")
+		}
+		if len(nodeIDs) == 0 {
+			return []model.Comment{}, 0, nil
+		}
+		comments, total, err := s.commentRepo.FindPageByNodeIDs(ctx, keyword, nodeIDs, page, size)
+		if err != nil {
+			s.log.Error("版主查询评论列表失败", zap.Error(err))
+			return nil, 0, apperror.Internal("查询失败")
+		}
+		return comments, total, nil
+	}
+	// Admin 及以上：看全部
 	comments, total, err := s.commentRepo.FindPage(ctx, keyword, page, size)
 	if err != nil {
 		s.log.Error("管理员查询评论列表失败", zap.Error(err))
@@ -247,9 +312,9 @@ func (s *CommentService) AdminListComments(ctx context.Context, uc *auth.UserCon
 	return comments, total, nil
 }
 
-// AdminDeleteComment 管理员删除评论。
+// AdminDeleteComment 管理员/版主删除评论。版主只能删除管辖节点下的评论。
 func (s *CommentService) AdminDeleteComment(ctx context.Context, uc *auth.UserContext, id uint) error {
-	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+	if err := uc.RequireRole(auth.RoleModerator); err != nil {
 		return err
 	}
 	comment, err := s.commentRepo.FindByID(ctx, id)
@@ -259,7 +324,18 @@ func (s *CommentService) AdminDeleteComment(ctx context.Context, uc *auth.UserCo
 		}
 		return apperror.Internal("查询失败")
 	}
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// 版主需检查评论所属帖子→所属节点是否在管辖范围内
+	if uc.Role == auth.RoleModerator {
+		post, err := s.postRepo.FindByID(ctx, comment.PostID)
+		if err != nil {
+			return apperror.Internal("查询失败")
+		}
+		ok, err := s.nodeModRepo.IsModerator(ctx, uc.UserID, post.NodeID)
+		if err != nil || !ok {
+			return apperror.Forbidden("无权管理该节点下的评论")
+		}
+	}
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.Comment{}, id).Error; err != nil {
 			return err
 		}

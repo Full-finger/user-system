@@ -29,7 +29,8 @@ func setupUserTest(t *testing.T) *UserService {
 		Expire: time.Hour,
 	}
 	log := zap.NewNop()
-	return NewUserService(repo, nodeModRepo, cfg, log)
+	txRunner := NewGormTransactionRunner(db)
+	return NewUserService(repo, nodeModRepo, cfg, txRunner, log)
 }
 
 func superAdminUC() *auth.UserContext {
@@ -192,6 +193,55 @@ func TestUserService_UpdateUser(t *testing.T) {
 		}
 		if updated.Username != "alice" {
 			t.Errorf("expected alice, got %s", updated.Username)
+		}
+	})
+}
+
+func TestUserService_UpdateProfileCoverTheme(t *testing.T) {
+	ctx := context.Background()
+	svc := setupUserTest(t)
+	user, _ := svc.Register(ctx, RegisterInput{Username: "alice", Password: "alice123"})
+	uc := &auth.UserContext{UserID: user.ID, Username: user.Username, Role: auth.RoleUser, DeviceID: "test"}
+
+	t.Run("set valid theme", func(t *testing.T) {
+		theme := "sunset"
+		updated, err := svc.UpdateProfile(ctx, uc, ProfileUpdateInput{CoverTheme: &theme})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if updated.CoverTheme == nil || *updated.CoverTheme != "sunset" {
+			t.Errorf("expected cover_theme sunset, got %v", updated.CoverTheme)
+		}
+	})
+
+	t.Run("clear theme via empty string", func(t *testing.T) {
+		empty := ""
+		updated, err := svc.UpdateProfile(ctx, uc, ProfileUpdateInput{CoverTheme: &empty})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if updated.CoverTheme != nil && *updated.CoverTheme != "" {
+			t.Errorf("expected cover_theme cleared, got %v", updated.CoverTheme)
+		}
+	})
+
+	t.Run("invalid theme rejected", func(t *testing.T) {
+		bad := "not-a-real-theme"
+		_, err := svc.UpdateProfile(ctx, uc, ProfileUpdateInput{CoverTheme: &bad})
+		if err == nil {
+			t.Fatal("expected error for invalid cover theme")
+		}
+	})
+
+	t.Run("nil does not update", func(t *testing.T) {
+		theme := "ocean"
+		_, _ = svc.UpdateProfile(ctx, uc, ProfileUpdateInput{CoverTheme: &theme})
+		updated, err := svc.UpdateProfile(ctx, uc, ProfileUpdateInput{CoverTheme: nil})
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if updated.CoverTheme == nil || *updated.CoverTheme != "ocean" {
+			t.Errorf("expected cover_theme unchanged (ocean), got %v", updated.CoverTheme)
 		}
 	})
 }

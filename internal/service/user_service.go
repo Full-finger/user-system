@@ -22,11 +22,12 @@ type UserService struct {
 	repo        repository.UserRepository
 	nodeModRepo repository.NodeModeratorRepository
 	cfg         *config.JWTConfig
+	txRunner    TransactionRunner
 	log         *zap.Logger
 }
 
-func NewUserService(repo repository.UserRepository, nodeModRepo repository.NodeModeratorRepository, cfg *config.JWTConfig, log *zap.Logger) *UserService {
-	return &UserService{repo: repo, nodeModRepo: nodeModRepo, cfg: cfg, log: log}
+func NewUserService(repo repository.UserRepository, nodeModRepo repository.NodeModeratorRepository, cfg *config.JWTConfig, txRunner TransactionRunner, log *zap.Logger) *UserService {
+	return &UserService{repo: repo, nodeModRepo: nodeModRepo, cfg: cfg, txRunner: txRunner, log: log}
 }
 
 // Count 返回用户总数。
@@ -164,7 +165,7 @@ func (s *UserService) UpdateProfile(ctx context.Context, uc *auth.UserContext, i
 		s.log.Error("查询用户失败", zap.Error(err))
 		return nil, apperror.Internal("查询失败")
 	}
-	return s.updateUser(ctx, user, UpdateInput{Password: in.Password, Nickname: in.Nickname})
+	return s.updateUser(ctx, user, UpdateInput{Password: in.Password, Nickname: in.Nickname, CoverTheme: in.CoverTheme, Motto: in.Motto})
 }
 
 func (s *UserService) ListUsers(ctx context.Context, uc *auth.UserContext, page, pageSize int) ([]model.User, int64, error) {
@@ -211,11 +212,9 @@ func (s *UserService) UpdateUser(ctx context.Context, uc *auth.UserContext, id u
 	if auth.Role(target.Role) == auth.RoleSuperAdmin && uc.Role != auth.RoleSuperAdmin {
 		return nil, apperror.Forbidden("无权修改超级管理员")
 	}
-	// 版主被降级时，清理节点绑定
+	// 版主被降级时，在事务中同时清理节点绑定和更新角色
 	if in.Role != "" && auth.Role(target.Role) == auth.RoleModerator && auth.ParseRole(in.Role) != auth.RoleModerator {
-		if err := s.nodeModRepo.DeleteByUserID(ctx, id); err != nil {
-			s.log.Error("清理版主节点绑定失败", zap.Error(err))
-		}
+		return s.updateWithModeratorCleanup(ctx, target, in)
 	}
 	return s.updateUser(ctx, target, in)
 }
@@ -237,19 +236,19 @@ func (s *UserService) AppointModerator(ctx context.Context, uc *auth.UserContext
 	if targetRole != auth.RoleUser && targetRole != auth.RoleVerifiedUser {
 		return nil, apperror.BadRequest("只能任命普通用户或认证用户为版主")
 	}
-	// 设置角色为 moderator
-	ri := int(auth.RoleModerator)
-	if err := s.repo.Update(ctx, target.ID, repository.UserUpdate{Role: &ri}); err != nil {
-		s.log.Error("任命版主失败", zap.Error(err))
-		return nil, apperror.Internal("任命版主失败")
-	}
-	// 创建节点绑定
-	mods := make([]repository.NodeModeratorCreate, len(nodeIDs))
-	for i, nid := range nodeIDs {
-		mods[i] = repository.NodeModeratorCreate{NodeID: nid, UserID: target.ID}
-	}
-	if err := s.nodeModRepo.CreateBatch(ctx, mods); err != nil {
-		s.log.Error("创建版主节点绑定失败", zap.Error(err))
+	// 事务：设置角色 + 绑定节点
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+		ri := int(auth.RoleModerator)
+		if err := tx.Model(&model.User{}).Where("id = ?", target.ID).Update("role", ri).Error; err != nil {
+			return err
+		}
+		mods := make([]repository.NodeModeratorCreate, len(nodeIDs))
+		for i, nid := range nodeIDs {
+			mods[i] = repository.NodeModeratorCreate{NodeID: nid, UserID: target.ID}
+		}
+		return tx.Create(&mods).Error
+	}); err != nil {
+		s.log.Error("任命版主事务失败", zap.Error(err))
 		return nil, apperror.Internal("任命版主失败")
 	}
 	return s.repo.FindByID(ctx, target.ID)
@@ -277,6 +276,50 @@ func (s *UserService) DeleteUser(ctx context.Context, uc *auth.UserContext, id u
 	return nil
 }
 
+// updateWithModeratorCleanup 在事务中同时更新用户信息和清理版主节点绑定。
+func (s *UserService) updateWithModeratorCleanup(ctx context.Context, user *model.User, in UpdateInput) (*model.User, error) {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", user.ID).Delete(&model.NodeModerator{}).Error; err != nil {
+			return err
+		}
+		upd := repository.UserUpdate{}
+		if in.Password != "" {
+			hashed, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
+			if err != nil {
+				return err
+			}
+			p := string(hashed)
+			upd.Password = &p
+		}
+		if in.Nickname != "" {
+			upd.Nickname = &in.Nickname
+		}
+		if in.Role != "" {
+			r := auth.ParseRole(in.Role)
+			ri := int(r)
+			upd.Role = &ri
+		}
+		cover, err := normalizeCoverTheme(in.CoverTheme)
+		if err != nil {
+			return err
+		}
+		upd.CoverTheme = cover
+		motto, err := normalizeMotto(in.Motto)
+		if err != nil {
+			return err
+		}
+		upd.Motto = motto
+		if upd.Nickname != nil || upd.Password != nil || upd.Role != nil || upd.CoverTheme != nil || upd.Motto != nil {
+			return tx.Model(&model.User{}).Where("id = ?", user.ID).Updates(upd).Error
+		}
+		return nil
+	}); err != nil {
+		s.log.Error("更新用户（含版主清理）事务失败", zap.Error(err))
+		return nil, apperror.Internal("更新失败")
+	}
+	return s.repo.FindByID(ctx, user.ID)
+}
+
 func (s *UserService) updateUser(ctx context.Context, user *model.User, in UpdateInput) (*model.User, error) {
 	upd := repository.UserUpdate{}
 	if in.Password != "" {
@@ -298,7 +341,17 @@ func (s *UserService) updateUser(ctx context.Context, user *model.User, in Updat
 		ri := int(r)
 		upd.Role = &ri
 	}
-	if upd.Email == nil && upd.Nickname == nil && upd.Password == nil && upd.Role == nil {
+	cover, err := normalizeCoverTheme(in.CoverTheme)
+	if err != nil {
+		return nil, err
+	}
+	upd.CoverTheme = cover
+	motto, err := normalizeMotto(in.Motto)
+	if err != nil {
+		return nil, err
+	}
+	upd.Motto = motto
+	if upd.Nickname == nil && upd.Password == nil && upd.Role == nil && upd.CoverTheme == nil && upd.Motto == nil {
 		return user, nil
 	}
 	if err := s.repo.Update(ctx, user.ID, upd); err != nil {

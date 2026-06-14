@@ -61,6 +61,18 @@ admin:
   password: "CHANGE_ME_ADMIN_PASSWORD"
   email: "admin@example.com"
 
+# 反垃圾评论配置
+antispam:
+  max_content_length: 5000              # 评论内容最大字符数
+  honeypot_field: "website"             # 蜜罐字段名（前后端动态匹配，JSON key）
+  difficulty: 4                         # PoW 难度（SHA256 前导零十六进制位数，越大越耗时）
+  blocked_keywords:                     # 屏蔽关键词列表
+    # - "赌博"
+    # - "代开发"
+  dup_window: 5m                        # 重复评论检测窗口
+  comment_interval: 30s                 # 同一用户两次评论最小间隔
+  challenge_limit: 10                   # challenge 接口每分钟限制次数（按 IP）
+
 log:
   level: "info"
   filename: "logs/app.log"

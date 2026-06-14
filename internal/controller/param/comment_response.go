@@ -6,13 +6,12 @@ import (
 
 // CreateCommentRequest 创建评论请求。
 type CreateCommentRequest struct {
-	Content  string `json:"content" validate:"required,min=1"`
+	Content  string `json:"content" validate:"required,min=1"` // 长度上限由 AntispamConfig.MaxContentLength 控制
 	ParentID *uint  `json:"parent_id"`
-	// 反垃圾字段
-	Website string `json:"website"` // 蜜罐：隐藏字段，正常用户不会填写
-	Ts      int64  `json:"_ts"`     // 时间戳：challenge 下发时的服务端时间戳
-	Nonce   string `json:"_nonce"`  // JS Challenge：后端下发的 nonce
-	Proof   string `json:"_proof"`  // JS Challenge：前端计算的 proof
+	// 反垃圾字段（蜜罐值通过手动解析原始 JSON body 提取，字段名由 AntispamConfig.HoneypotField 动态配置）
+	Ts     int64  `json:"_ts"`
+	Nonce  string `json:"_nonce"`
+	Suffix string `json:"_suffix"` // PoW：客户端计算的后缀
 }
 
 // CommentResponse 评论响应。

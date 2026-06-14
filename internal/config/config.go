@@ -24,6 +24,7 @@ type Config struct {
 	RateLimit RateLimitConfig  `yaml:"rate_limit"`
 	GuestJWT  GuestJWTConfig   `yaml:"guest_jwt"`
 	Admin     AdminConfig      `yaml:"admin"`
+	Antispam  AntispamConfig   `yaml:"antispam"`
 	Log       logger.LogConfig `yaml:"log"`
 }
 
@@ -92,6 +93,41 @@ type AdminConfig struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 	Email    string `yaml:"email"`
+}
+
+// AntispamConfig 反垃圾评论配置。
+type AntispamConfig struct {
+	MaxContentLength int           `yaml:"max_content_length"` // 评论内容最大长度（字符数）
+	HoneypotField    string        `yaml:"honeypot_field"`     // 蜜罐字段名（JSON key，前后端动态匹配）
+	Difficulty       int           `yaml:"difficulty"`         // PoW 难度（SHA256 前导零十六进制位数）
+	BlockedKeywords  []string      `yaml:"blocked_keywords"`   // 屏蔽关键词
+	DupWindow        time.Duration `yaml:"dup_window"`         // 重复评论检测窗口
+	CommentInterval  time.Duration `yaml:"comment_interval"`   // 同一用户两次评论最小间隔
+	ChallengeLimit   int           `yaml:"challenge_limit"`    // challenge 接口每分钟限制次数
+}
+
+// Defaults returns a copy with zero-values replaced by sensible defaults.
+func (a *AntispamConfig) Defaults() AntispamConfig {
+	d := *a
+	if d.MaxContentLength <= 0 {
+		d.MaxContentLength = 5000
+	}
+	if d.HoneypotField == "" {
+		d.HoneypotField = "website"
+	}
+	if d.Difficulty <= 0 {
+		d.Difficulty = 4
+	}
+	if d.DupWindow <= 0 {
+		d.DupWindow = 5 * time.Minute
+	}
+	if d.CommentInterval <= 0 {
+		d.CommentInterval = 30 * time.Second
+	}
+	if d.ChallengeLimit <= 0 {
+		d.ChallengeLimit = 10
+	}
+	return d
 }
 
 // Load 从 YAML 文件加载配置并校验。

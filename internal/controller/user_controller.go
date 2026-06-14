@@ -10,7 +10,6 @@ import (
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/config"
 	"github.com/full-finger/user-system/internal/controller/param"
-	"github.com/full-finger/user-system/internal/repository"
 	"github.com/full-finger/user-system/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -19,17 +18,14 @@ var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,30}$`)
 
 // UserController 用户相关接口的处理器。
 type UserController struct {
-	svc         *service.UserService
-	captchaSvc  *service.CaptchaService
-	guestCfg    *config.GuestJWTConfig
-	postRepo    repository.PostRepository
-	commentRepo repository.CommentRepository
-	likeRepo    repository.LikeRepository
-	nodeRepo    repository.NodeRepository
+	svc        *service.UserService
+	statsSvc   *service.StatsService
+	captchaSvc *service.CaptchaService
+	guestCfg   *config.GuestJWTConfig
 }
 
-func NewUserController(svc *service.UserService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig, postRepo repository.PostRepository, commentRepo repository.CommentRepository, likeRepo repository.LikeRepository, nodeRepo repository.NodeRepository) *UserController {
-	return &UserController{svc: svc, captchaSvc: captchaSvc, guestCfg: guestCfg, postRepo: postRepo, commentRepo: commentRepo, likeRepo: likeRepo, nodeRepo: nodeRepo}
+func NewUserController(svc *service.UserService, statsSvc *service.StatsService, captchaSvc *service.CaptchaService, guestCfg *config.GuestJWTConfig) *UserController {
+	return &UserController{svc: svc, statsSvc: statsSvc, captchaSvc: captchaSvc, guestCfg: guestCfg}
 }
 
 func success(c echo.Context, data any) error {
@@ -102,11 +98,11 @@ func (ctrl *UserController) GetProfile(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx := c.Request().Context()
-	postCount, _ := ctrl.postRepo.CountByUserID(ctx, user.ID)
-	commentCount, _ := ctrl.commentRepo.CountByUserID(ctx, user.ID)
-	likeCount, _ := ctrl.likeRepo.CountReceivedLikesByUserID(ctx, user.ID)
-	return success(c, param.ToUserResponseWithStats(user, postCount, commentCount, likeCount))
+	stats, err := ctrl.statsSvc.GetProfileStats(c.Request().Context(), user.ID)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToUserResponseWithStats(user, stats.PostCount, stats.CommentCount, stats.LikeCount, stats.FollowerCount, stats.FollowingCount, stats.LikedCount))
 }
 
 func (ctrl *UserController) UpdateProfile(c echo.Context) error {
@@ -116,8 +112,10 @@ func (ctrl *UserController) UpdateProfile(c echo.Context) error {
 		return err
 	}
 	user, err := ctrl.svc.UpdateProfile(c.Request().Context(), uc, service.ProfileUpdateInput{
-		Password: req.Password,
-		Nickname: req.Nickname,
+		Password:   req.Password,
+		Nickname:   req.Nickname,
+		CoverTheme: req.CoverTheme,
+		Motto:      req.Motto,
 	})
 	if err != nil {
 		return err
@@ -159,9 +157,11 @@ func (ctrl *UserController) UpdateUser(c echo.Context) error {
 	}
 	uc := auth.GetUserContext(c)
 	user, err := ctrl.svc.UpdateUser(c.Request().Context(), uc, uint(id), service.UpdateInput{
-		Password: req.Password,
-		Nickname: req.Nickname,
-		Role:     req.Role,
+		Password:   req.Password,
+		Nickname:   req.Nickname,
+		Role:       req.Role,
+		CoverTheme: req.CoverTheme,
+		Motto:      req.Motto,
 	})
 	if err != nil {
 		return err
@@ -220,22 +220,28 @@ func (ctrl *UserController) AppointModerator(c echo.Context) error {
 	return success(c, param.ToUserResponse(user))
 }
 
+// GetModeratedNodes 获取当前版主管辖的节点列表。
+func (ctrl *UserController) GetModeratedNodes(c echo.Context) error {
+	uc := auth.GetUserContext(c)
+	nodes, err := ctrl.statsSvc.GetMyModeratedNodes(c.Request().Context(), uc)
+	if err != nil {
+		return err
+	}
+	return success(c, nodes)
+}
+
 // AdminStats 返回管理后台统计概览。
 func (ctrl *UserController) AdminStats(c echo.Context) error {
 	uc := auth.GetUserContext(c)
-	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
-		_ = err
+	stats, err := ctrl.statsSvc.AdminStats(c.Request().Context(), uc)
+	if err != nil {
+		return err
 	}
-	ctx := c.Request().Context()
-	userCount, _ := ctrl.svc.Count(ctx)
-	postCount, _ := ctrl.postRepo.Count(ctx)
-	commentCount, _ := ctrl.commentRepo.Count(ctx)
-	nodeCount, _ := ctrl.nodeRepo.Count(ctx)
 	return success(c, param.AdminStatsResponse{
-		UserCount:    userCount,
-		PostCount:    postCount,
-		CommentCount: commentCount,
-		NodeCount:    nodeCount,
+		UserCount:    stats.UserCount,
+		PostCount:    stats.PostCount,
+		CommentCount: stats.CommentCount,
+		NodeCount:    stats.NodeCount,
 	})
 }
 
