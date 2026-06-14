@@ -27,8 +27,9 @@ func setupPostTest(t *testing.T) (*PostService, *gorm.DB) {
 	userRepo := repository.NewUserRepository(db)
 	mentionRepo := repository.NewMentionRepository(db)
 	likeSvc := NewLikeService(likeRepo, log)
-	nodeSvc := NewNodeService(nodeRepo, userRepo, mentionRepo, log)
-	return NewPostService(postRepo, likeRepo, likeSvc, nodeRepo, nodeModRepo, nodeSvc, db, log), db
+	mentionSvc := NewMentionService(userRepo, nil, nil, mentionRepo, log)
+	txRunner := NewGormTransactionRunner(db)
+	return NewPostService(postRepo, likeRepo, likeSvc, nodeRepo, nodeModRepo, mentionSvc, txRunner, log), db
 }
 
 func seedPostData(t *testing.T, db *gorm.DB) (*model.User, *model.Node) {

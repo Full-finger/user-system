@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/full-finger/user-system/internal/model"
 	"gorm.io/gorm"
@@ -111,6 +112,22 @@ func (r *userRepoGorm) FindByIDs(ctx context.Context, ids []uint) ([]model.User,
 func (r *userRepoGorm) FindByRoleGTE(ctx context.Context, minRole int) ([]model.User, error) {
 	var users []model.User
 	if err := r.db.WithContext(ctx).Where("role >= ?", minRole).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func (r *userRepoGorm) FindByUsernames(ctx context.Context, usernames []string) ([]model.User, error) {
+	if len(usernames) == 0 {
+		return nil, nil
+	}
+	// 使用 LOWER() 实现大小写不敏感匹配，兼容 PostgreSQL（默认大小写敏感）。
+	lower := make([]string, len(usernames))
+	for i, u := range usernames {
+		lower[i] = strings.ToLower(u)
+	}
+	var users []model.User
+	if err := r.db.WithContext(ctx).Where("LOWER(username) IN ?", lower).Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil

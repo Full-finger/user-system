@@ -18,9 +18,11 @@ type LoginRequest struct {
 
 // UpdateRequest 用户更新请求，所有字段可选。
 type UpdateRequest struct {
-	Password string `json:"password" validate:"omitempty,password"`
-	Nickname string `json:"nickname" validate:"omitempty,nickname"`
-	Role     string `json:"role" validate:"omitempty,oneof=user verified_user admin"`
+	Password   string  `json:"password" validate:"omitempty,password"`
+	Nickname   string  `json:"nickname" validate:"omitempty,nickname"`
+	Role       string  `json:"role" validate:"omitempty,oneof=user verified_user admin"`
+	CoverTheme *string `json:"cover_theme"` // nil 不更新；"" 清空；非空须为合法 key（由 service 校验）
+	Motto      *string `json:"motto"`       // nil 不更新；"" 清空；非空为座右铭内容（由 service 校验长度）
 }
 
 // AppointModeratorRequest 任命版主请求。

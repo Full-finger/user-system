@@ -19,4 +19,6 @@ type CommentRepository interface {
 	CountReplies(ctx context.Context, parentIDs []uint) (map[uint]int64, error)
 	FindCommentIDsByPostID(ctx context.Context, postID uint) ([]uint, error)
 	CountByUserID(ctx context.Context, userID uint) (int64, error)
+	// FindPageByNodeIDs 管理后台按节点 ID 列表筛选评论（版主只能看管辖节点的评论）。
+	FindPageByNodeIDs(ctx context.Context, keyword string, nodeIDs []uint, page, size int) ([]model.Comment, int64, error)
 }

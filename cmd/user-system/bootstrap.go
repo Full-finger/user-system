@@ -66,24 +66,27 @@ func initApp(e *echo.Echo, cfg *config.Config, db *gorm.DB, rdb *redis.Client, l
 	commentRepo := repository.NewCommentRepository(db)
 	commentLikeRepo := repository.NewCommentLikeRepository(db)
 
-	userSvc := service.NewUserService(userRepo, nodeModRepo, &cfg.JWT, log)
+	txRunner := service.NewGormTransactionRunner(db)
+	userSvc := service.NewUserService(userRepo, nodeModRepo, &cfg.JWT, txRunner, log)
 	captchaSvc := service.NewCaptchaService(rdb, &cfg.Captcha, mailer, log)
-	nodeSvc := service.NewNodeService(nodeRepo, userRepo, mentionRepo, log)
+	nodeSvc := service.NewNodeService(nodeRepo, userRepo, nodeModRepo, log)
 	likeSvc := service.NewLikeService(likeRepo, log)
-	postSvc := service.NewPostService(postRepo, likeRepo, likeSvc, nodeRepo, nodeModRepo, nodeSvc, db, log)
-	followSvc := service.NewFollowService(followRepo, userRepo, postRepo, log)
-	commentSvc := service.NewCommentService(commentRepo, commentLikeRepo, postRepo, mentionRepo, nodeSvc, db, log)
+	mentionSvc := service.NewMentionService(userRepo, followRepo, nodeModRepo, mentionRepo, log)
+	postSvc := service.NewPostService(postRepo, likeRepo, likeSvc, nodeRepo, nodeModRepo, mentionSvc, txRunner, log)
+	followSvc := service.NewFollowService(followRepo, userRepo, txRunner, log)
+	commentSvc := service.NewCommentService(commentRepo, commentLikeRepo, postRepo, mentionRepo, nodeModRepo, mentionSvc, txRunner, log)
+	statsSvc := service.NewStatsService(userRepo, postRepo, commentRepo, likeRepo, nodeRepo, nodeModRepo, followRepo, log)
 
 	// 种子数据
 	nodeSvc.SeedNodes(context.Background())
 	userSvc.SeedAdmin(context.Background(), &cfg.Admin)
 
-	userCtrl := controller.NewUserController(userSvc, captchaSvc, &cfg.GuestJWT, postRepo, commentRepo, likeRepo, nodeRepo)
-	postCtrl := controller.NewPostController(postSvc, nodeSvc, followSvc, log)
+	userCtrl := controller.NewUserController(userSvc, statsSvc, captchaSvc, &cfg.GuestJWT)
+	postCtrl := controller.NewPostController(postSvc, followSvc, log)
 	nodeCtrl := controller.NewNodeController(nodeSvc, postSvc)
-	followCtrl := controller.NewFollowController(followSvc)
-	commentCtrl := controller.NewCommentController(commentSvc, rdb, log)
-	mentionCtrl := controller.NewMentionController(userRepo, followRepo, nodeModRepo)
+	followCtrl := controller.NewFollowController(followSvc, statsSvc)
+	commentCtrl := controller.NewCommentController(commentSvc, rdb, log, cfg.Antispam)
+	mentionCtrl := controller.NewMentionController(mentionSvc)
 
 	// --- Echo 配置 ---
 	e.Validator = validator.New()

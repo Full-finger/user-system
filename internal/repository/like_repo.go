@@ -13,5 +13,6 @@ type LikeRepository interface {
 	Exists(ctx context.Context, userID, postID uint) (bool, error)
 	FindByUserID(ctx context.Context, userID uint, page, size int) ([]model.Like, int64, error)
 	FindLikedPostIDs(ctx context.Context, userID uint, postIDs []uint) (map[uint]bool, error)
+	CountByUserID(ctx context.Context, userID uint) (int64, error)
 	CountReceivedLikesByUserID(ctx context.Context, userID uint) (int64, error)
 }

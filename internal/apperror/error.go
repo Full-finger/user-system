@@ -36,3 +36,17 @@ func Forbidden(msg string) *AppError    { return New(http.StatusForbidden, msg) 
 func NotFound(msg string) *AppError     { return New(http.StatusNotFound, msg) }
 func TooMany(msg string) *AppError      { return New(http.StatusTooManyRequests, msg) }
 func Internal(msg string) *AppError     { return New(http.StatusInternalServerError, msg) }
+
+// 带 Err 包装的便捷函数，保留原始错误链（用于 log/Unwrap 诊断）。
+func BadRequestWrap(msg string, err error) *AppError { return NewWrap(http.StatusBadRequest, msg, err) }
+func UnauthorizedWrap(msg string, err error) *AppError {
+	return NewWrap(http.StatusUnauthorized, msg, err)
+}
+func ForbiddenWrap(msg string, err error) *AppError { return NewWrap(http.StatusForbidden, msg, err) }
+func NotFoundWrap(msg string, err error) *AppError  { return NewWrap(http.StatusNotFound, msg, err) }
+func TooManyWrap(msg string, err error) *AppError {
+	return NewWrap(http.StatusTooManyRequests, msg, err)
+}
+func InternalWrap(msg string, err error) *AppError {
+	return NewWrap(http.StatusInternalServerError, msg, err)
+}

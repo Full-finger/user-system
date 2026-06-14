@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
@@ -28,7 +27,7 @@ func (s *LikeService) FindLikedPostIDs(ctx context.Context, uc *auth.UserContext
 	m, err := s.likeRepo.FindLikedPostIDs(ctx, uc.UserID, postIDs)
 	if err != nil {
 		s.log.Error("批量查询点赞状态失败", zap.Error(err))
-		return nil, apperror.NewWrap(http.StatusInternalServerError, "查询点赞状态失败", err)
+		return nil, apperror.InternalWrap("查询点赞状态失败", err)
 	}
 	return m, nil
 }

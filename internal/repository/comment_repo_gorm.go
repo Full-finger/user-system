@@ -132,3 +132,23 @@ func (r *commentRepoGorm) FindCommentIDsByPostID(ctx context.Context, postID uin
 	}
 	return ids, nil
 }
+
+func (r *commentRepoGorm) FindPageByNodeIDs(ctx context.Context, keyword string, nodeIDs []uint, page, size int) ([]model.Comment, int64, error) {
+	var comments []model.Comment
+	var total int64
+	db := r.db.WithContext(ctx).
+		Joins("JOIN posts ON posts.id = comments.post_id").
+		Where("posts.node_id IN ?", nodeIDs)
+	if keyword != "" {
+		db = db.Where("comments.content ILIKE ?", "%"+keyword+"%")
+	}
+	if err := db.Model(&model.Comment{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * size
+	if err := db.Preload("User").Preload("ReplyTo").
+		Order("comments.created_at DESC").Offset(offset).Limit(size).Find(&comments).Error; err != nil {
+		return nil, 0, err
+	}
+	return comments, total, nil
+}

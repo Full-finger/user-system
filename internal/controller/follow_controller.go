@@ -10,10 +10,11 @@ import (
 // FollowController 关注 / 用户资料相关接口的处理器。
 type FollowController struct {
 	followSvc *service.FollowService
+	statsSvc  *service.StatsService
 }
 
-func NewFollowController(followSvc *service.FollowService) *FollowController {
-	return &FollowController{followSvc: followSvc}
+func NewFollowController(followSvc *service.FollowService, statsSvc *service.StatsService) *FollowController {
+	return &FollowController{followSvc: followSvc, statsSvc: statsSvc}
 }
 
 // ToggleFollow 关注/取消关注。
@@ -60,16 +61,27 @@ func (ctrl *FollowController) GetFollowings(c echo.Context) error {
 	return success(c, param.ToFollowingListResponse(follows, total, page, size, followedMap))
 }
 
-// GetUserProfile 查看其他用户信息（含统计）。
+// GetUserProfile 查看其他用户信息（含统计+版主节点）。
 func (ctrl *FollowController) GetUserProfile(c echo.Context) error {
 	uc := auth.GetUserContext(c)
 	target, err := resolveUsername(c, ctrl.followSvc)
 	if err != nil {
 		return err
 	}
-	user, postCount, followerCount, followingCount, followed, err := ctrl.followSvc.GetUserProfile(c.Request().Context(), uc, target.ID)
+	// 查询用户统计
+	stats, err := ctrl.statsSvc.GetUserStats(c.Request().Context(), target.ID)
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToUserProfileResponse(user, postCount, followerCount, followingCount, followed))
+	// 查询关注状态
+	followed, err := ctrl.followSvc.IsFollowing(c.Request().Context(), uc, target.ID)
+	if err != nil {
+		return err
+	}
+	// 查询版主管辖节点
+	nodes, err := ctrl.statsSvc.GetModeratedNodesByUserID(c.Request().Context(), target.ID)
+	if err != nil {
+		return err
+	}
+	return success(c, param.ToUserProfileResponse(target, stats.PostCount, stats.FollowerCount, stats.FollowingCount, stats.LikeCount, followed, nodes))
 }

@@ -1,14 +1,16 @@
 package param
 
 import (
+	"github.com/full-finger/user-system/internal/avatar"
 	"github.com/full-finger/user-system/internal/model"
 )
 
 // MentionResponse 提及用户简要信息。
 type MentionResponse struct {
-	ID       uint   `json:"id"`
-	Username string `json:"username"`
-	Nickname string `json:"nickname,omitempty"`
+	ID        uint   `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname,omitempty"`
+	AvatarURL string `json:"avatar_url"`
 }
 
 // PostResponse 帖子响应。
@@ -67,9 +69,10 @@ type LikedPostListResponse struct {
 // ToMentionResponse 将 model.Mention 转为 API 响应。
 func ToMentionResponse(m *model.Mention) MentionResponse {
 	return MentionResponse{
-		ID:       m.UserID,
-		Username: m.Username,
-		Nickname: m.User.Nickname,
+		ID:        m.UserID,
+		Username:  m.Username,
+		Nickname:  m.User.Nickname,
+		AvatarURL: avatar.AvatarURL(m.User.Email, m.Username),
 	}
 }
 

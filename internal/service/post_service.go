@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/full-finger/user-system/internal/apperror"
 	"github.com/full-finger/user-system/internal/auth"
@@ -14,20 +13,32 @@ import (
 	"gorm.io/gorm"
 )
 
+// MentionParser 提及解析能力接口。
+type MentionParser interface {
+	ParseAndSaveMentions(ctx context.Context, postID uint, content string)
+	ParseAndSaveCommentMentions(ctx context.Context, postID, commentID uint, content string)
+	GetMentions(ctx context.Context, postID uint) ([]model.Mention, error)
+}
+
+// LikeQueryer 点赞查询能力接口。
+type LikeQueryer interface {
+	FindLikedPostIDs(ctx context.Context, uc *auth.UserContext, postIDs []uint) (map[uint]bool, error)
+}
+
 // PostService 帖子业务服务。
 type PostService struct {
 	postRepo    repository.PostRepository
 	likeRepo    repository.LikeRepository
-	likeSvc     *LikeService
+	likeSvc     LikeQueryer
 	nodeRepo    repository.NodeRepository
 	nodeModRepo repository.NodeModeratorRepository
-	nodeSvc     *NodeService
-	txDB        *gorm.DB
+	mentionSvc  MentionParser
+	txRunner    TransactionRunner
 	log         *zap.Logger
 }
 
-func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, likeSvc *LikeService, nodeRepo repository.NodeRepository, nodeModRepo repository.NodeModeratorRepository, nodeSvc *NodeService, txDB *gorm.DB, log *zap.Logger) *PostService {
-	return &PostService{postRepo: postRepo, likeRepo: likeRepo, likeSvc: likeSvc, nodeRepo: nodeRepo, nodeModRepo: nodeModRepo, nodeSvc: nodeSvc, txDB: txDB, log: log}
+func NewPostService(postRepo repository.PostRepository, likeRepo repository.LikeRepository, likeSvc LikeQueryer, nodeRepo repository.NodeRepository, nodeModRepo repository.NodeModeratorRepository, mentionSvc MentionParser, txRunner TransactionRunner, log *zap.Logger) *PostService {
+	return &PostService{postRepo: postRepo, likeRepo: likeRepo, likeSvc: likeSvc, nodeRepo: nodeRepo, nodeModRepo: nodeModRepo, mentionSvc: mentionSvc, txRunner: txRunner, log: log}
 }
 
 // CreatePost 发帖。
@@ -55,7 +66,7 @@ func (s *PostService) CreatePost(ctx context.Context, uc *auth.UserContext, node
 		Content: content,
 	}
 
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Create(post).Error; err != nil {
 			return err
 		}
@@ -69,7 +80,7 @@ func (s *PostService) CreatePost(ctx context.Context, uc *auth.UserContext, node
 		return nil, apperror.Internal("发帖失败")
 	}
 
-	go s.nodeSvc.ParseAndSaveMentions(context.Background(), post.ID, content)
+	go s.mentionSvc.ParseAndSaveMentions(context.Background(), post.ID, content)
 	return s.postRepo.FindByID(ctx, post.ID)
 }
 
@@ -88,7 +99,7 @@ func (s *PostService) DeletePost(ctx context.Context, uc *auth.UserContext, code
 		return apperror.Forbidden("无权删除此帖子")
 	}
 
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.Post{}, post.ID).Error; err != nil {
 			return err
 		}
@@ -136,7 +147,7 @@ func (s *PostService) GetPost(ctx context.Context, uc *auth.UserContext, code st
 	}
 	post.ViewCount++
 
-	mentions, err := s.nodeSvc.GetMentions(ctx, post.ID)
+	mentions, err := s.mentionSvc.GetMentions(ctx, post.ID)
 	if err != nil {
 		s.log.Warn("获取帖子提及列表失败", zap.Uint("postID", post.ID), zap.Error(err))
 	}
@@ -217,7 +228,7 @@ func (s *PostService) ToggleLike(ctx context.Context, uc *auth.UserContext, code
 	}
 
 	if liked {
-		if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 			if err := tx.Where("user_id = ? AND post_id = ?", uc.UserID, post.ID).Delete(&model.Like{}).Error; err != nil {
 				return err
 			}
@@ -230,7 +241,7 @@ func (s *PostService) ToggleLike(ctx context.Context, uc *auth.UserContext, code
 		return false, nil
 	}
 
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Create(&model.Like{UserID: uc.UserID, PostID: post.ID}).Error; err != nil {
 			return err
 		}
@@ -243,11 +254,38 @@ func (s *PostService) ToggleLike(ctx context.Context, uc *auth.UserContext, code
 	return true, nil
 }
 
-// AdminListPosts 管理员帖子列表（支持搜索和节点筛选）。
+// AdminListPosts 管理员/版主帖子列表（支持搜索和节点筛选）。版主只能看管辖节点的帖子。
 func (s *PostService) AdminListPosts(ctx context.Context, uc *auth.UserContext, keyword string, nodeID uint, page, size int) ([]model.Post, int64, error) {
-	if err := uc.RequireRole(auth.RoleAdmin); err != nil {
+	if err := uc.RequireRole(auth.RoleModerator); err != nil {
 		return nil, 0, err
 	}
+	// 版主：只返回管辖节点的帖子
+	if uc.Role == auth.RoleModerator {
+		modNodeIDs, err := s.nodeModRepo.FindByUserID(ctx, uc.UserID)
+		if err != nil || len(modNodeIDs) == 0 {
+			return []model.Post{}, 0, nil
+		}
+		// 如果指定了 nodeID，检查是否在管辖范围内
+		if nodeID > 0 {
+			found := false
+			for _, nid := range modNodeIDs {
+				if nid == nodeID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return []model.Post{}, 0, nil
+			}
+		}
+		posts, total, err := s.postRepo.FindAdminPageByNodeIDs(ctx, keyword, modNodeIDs, page, size)
+		if err != nil {
+			s.log.Error("版主查询帖子列表失败", zap.Error(err))
+			return nil, 0, apperror.Internal("查询失败")
+		}
+		return posts, total, nil
+	}
+	// Admin 及以上：看全部
 	posts, total, err := s.postRepo.FindAdminPage(ctx, keyword, nodeID, page, size)
 	if err != nil {
 		s.log.Error("管理员查询帖子列表失败", zap.Error(err))
@@ -281,7 +319,7 @@ func (s *PostService) AdminDeletePost(ctx context.Context, uc *auth.UserContext,
 			return apperror.Forbidden("无权管理该节点的帖子")
 		}
 	}
-	if err := s.txDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
 		if err := tx.Delete(&model.Post{}, post.ID).Error; err != nil {
 			return err
 		}
@@ -297,8 +335,11 @@ func (s *PostService) AdminDeletePost(ctx context.Context, uc *auth.UserContext,
 	return nil
 }
 
-// ListLikedPosts 某用户点赞过的帖子列表。
+// ListLikedPosts 某用户点赞过的帖子列表（仅本人可查）。
 func (s *PostService) ListLikedPosts(ctx context.Context, uc *auth.UserContext, userID uint, page, size int) ([]model.Like, int64, map[uint]bool, error) {
+	if uc.UserID != userID {
+		return nil, 0, nil, apperror.Forbidden("无权查看他人的点赞列表")
+	}
 	likes, total, err := s.likeRepo.FindByUserID(ctx, userID, page, size)
 	if err != nil {
 		s.log.Error("查询点赞列表失败", zap.Error(err))
@@ -342,5 +383,5 @@ func (s *PostService) generateUniqueCode(ctx context.Context) (string, error) {
 		}
 		s.log.Warn("帖子code碰撞，重试", zap.String("code", code), zap.Int("attempt", i+1))
 	}
-	return "", fmt.Errorf("生成唯一code失败，已重试%d次", maxRetry)
+	return "", apperror.Internal("生成唯一 code 失败")
 }

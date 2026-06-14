@@ -18,12 +18,11 @@ func setupFollowTest(t *testing.T) (*FollowService, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
-	db.AutoMigrate(&model.User{}, &model.Follow{}, &model.Node{}, &model.Post{})
+	db.AutoMigrate(&model.User{}, &model.Follow{})
 	followRepo := repository.NewFollowRepository(db)
 	userRepo := repository.NewUserRepository(db)
-	postRepo := repository.NewPostRepository(db)
 	log := zap.NewNop()
-	return NewFollowService(followRepo, userRepo, postRepo, log), db
+	return NewFollowService(followRepo, userRepo, NewGormTransactionRunner(db), log), db
 }
 
 func seedUsers(t *testing.T, db *gorm.DB) (alice, bob *model.User) {
@@ -94,66 +93,6 @@ func TestFollowService_ToggleFollow(t *testing.T) {
 	})
 }
 
-func TestFollowService_GetUserProfile(t *testing.T) {
-	ctx := context.Background()
-	svc, db := setupFollowTest(t)
-	alice, bob := seedUsers(t, db)
-
-	t.Run("basic profile", func(t *testing.T) {
-		user, pc, fc, fic, followed, err := svc.GetUserProfile(ctx, userUC(alice), bob.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if user.Username != "bob" {
-			t.Errorf("expected bob, got %s", user.Username)
-		}
-		if pc != 0 || fc != 0 || fic != 0 {
-			t.Errorf("expected all zeros, got posts=%d followers=%d followings=%d", pc, fc, fic)
-		}
-		if followed {
-			t.Error("expected followed=false")
-		}
-	})
-
-	t.Run("viewing self", func(t *testing.T) {
-		_, _, _, _, followed, err := svc.GetUserProfile(ctx, userUC(alice), alice.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if followed {
-			t.Error("expected followed=false when viewing self")
-		}
-	})
-
-	t.Run("after follow", func(t *testing.T) {
-		_, _ = svc.ToggleFollow(ctx, userUC(alice), bob.ID)
-		_, _, _, _, followed, err := svc.GetUserProfile(ctx, userUC(alice), bob.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !followed {
-			t.Error("expected followed=true after following")
-		}
-	})
-
-	t.Run("guest views profile", func(t *testing.T) {
-		_, _, _, _, followed, err := svc.GetUserProfile(ctx, guestUC(), bob.ID)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if followed {
-			t.Error("guest should always see followed=false")
-		}
-	})
-
-	t.Run("nonexistent user", func(t *testing.T) {
-		_, _, _, _, _, err := svc.GetUserProfile(ctx, userUC(alice), 9999)
-		if err == nil {
-			t.Fatal("expected error for nonexistent user")
-		}
-	})
-}
-
 func TestFollowService_GetFollowers_GetFollowings(t *testing.T) {
 	ctx := context.Background()
 	svc, db := setupFollowTest(t)
@@ -161,7 +100,7 @@ func TestFollowService_GetFollowers_GetFollowings(t *testing.T) {
 	_, _ = svc.ToggleFollow(ctx, userUC(alice), bob.ID)
 
 	t.Run("bob has one follower", func(t *testing.T) {
-		follows, total, _, err := svc.GetFollowers(ctx, userUC(alice), bob.ID, 1, 20)
+		follows, total, _, err := svc.GetFollowers(ctx, userUC(bob), bob.ID, 1, 20)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -189,6 +128,20 @@ func TestFollowService_GetFollowers_GetFollowings(t *testing.T) {
 		}
 		if follows[0].FollowingID != bob.ID {
 			t.Errorf("expected followingID=%d, got %d", bob.ID, follows[0].FollowingID)
+		}
+	})
+
+	t.Run("viewing others' followers rejected", func(t *testing.T) {
+		_, _, _, err := svc.GetFollowers(ctx, userUC(alice), bob.ID, 1, 20)
+		if err == nil {
+			t.Fatal("expected error when viewing others' followers")
+		}
+	})
+
+	t.Run("viewing others' followings rejected", func(t *testing.T) {
+		_, _, _, err := svc.GetFollowings(ctx, userUC(bob), alice.ID, 1, 20)
+		if err == nil {
+			t.Fatal("expected error when viewing others' followings")
 		}
 	})
 }

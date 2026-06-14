@@ -14,13 +14,12 @@ import (
 // PostController 帖子相关接口的处理器。
 type PostController struct {
 	postSvc   *service.PostService
-	nodeSvc   *service.NodeService
 	followSvc *service.FollowService
 	log       *zap.Logger
 }
 
-func NewPostController(postSvc *service.PostService, nodeSvc *service.NodeService, followSvc *service.FollowService, log *zap.Logger) *PostController {
-	return &PostController{postSvc: postSvc, nodeSvc: nodeSvc, followSvc: followSvc, log: log}
+func NewPostController(postSvc *service.PostService, followSvc *service.FollowService, log *zap.Logger) *PostController {
+	return &PostController{postSvc: postSvc, followSvc: followSvc, log: log}
 }
 
 // CreatePost 发帖。
@@ -34,11 +33,9 @@ func (ctrl *PostController) CreatePost(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	mentions, err := ctrl.nodeSvc.GetMentions(c.Request().Context(), post.ID)
-	if err != nil {
-		ctrl.log.Warn("获取帖子提及列表失败", zap.Uint("postID", post.ID), zap.Error(err))
-	}
-	return success(c, param.ToPostResponse(post, mentions, nil))
+	// 提及解析是异步的（goroutine），此处不查询 mentions，避免竞态返回空列表。
+	// 用户查看帖子详情时（GetPost）会获取完整的 mentions。
+	return success(c, param.ToPostResponse(post, nil, nil))
 }
 
 // DeletePost 删帖。

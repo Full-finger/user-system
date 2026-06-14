@@ -967,6 +967,17 @@ components:
           type: string
           nullable: true
           example: zhangsan@example.com
+        avatar_url:
+          type: string
+          example: https://www.gravatar.com/avatar/xxx
+        cover_theme:
+          type: string
+          nullable: true
+          example: aurora
+        motto:
+          type: string
+          nullable: true
+          example: 保持热爱
         role:
           type: string
           enum: [admin, user]
@@ -975,6 +986,34 @@ components:
           type: string
           format: date-time
           example: "2026-01-01T00:00:00+08:00"
+        # 以下统计字段仅在 /profile（获取个人信息）返回，其它接口可能省略
+        post_count:
+          type: integer
+          example: 12
+        comment_count:
+          type: integer
+          example: 34
+        like_count:
+          type: integer
+          description: 收到的点赞数（获赞数）
+          example: 56
+        follower_count:
+          type: integer
+          description: 粉丝数
+          example: 8
+        following_count:
+          type: integer
+          description: 关注数
+          example: 15
+        liked_count:
+          type: integer
+          description: 我点赞过的帖子数
+          example: 23
+        moderated_nodes:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ModeratedNode"
 
     UserListResponse:
       type: object
@@ -992,6 +1031,20 @@ components:
         page_size:
           type: integer
           example: 20
+
+    ModeratedNode:
+      type: object
+      description: 版主管辖的节点简要信息
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 技术
+        slug:
+          type: string
+          example: tech
 
     UserProfileResponse:
       type: object

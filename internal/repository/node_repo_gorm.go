@@ -27,6 +27,17 @@ func (r *nodeRepoGorm) FindByID(ctx context.Context, id uint) (*model.Node, erro
 	return &node, nil
 }
 
+func (r *nodeRepoGorm) FindByIDs(ctx context.Context, ids []uint) ([]model.Node, error) {
+	var nodes []model.Node
+	if len(ids) == 0 {
+		return nodes, nil
+	}
+	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Order("sort_order ASC, id ASC").Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
 func (r *nodeRepoGorm) FindBySlug(ctx context.Context, slug string) (*model.Node, error) {
 	var node model.Node
 	if err := r.db.WithContext(ctx).Where("slug = ?", slug).First(&node).Error; err != nil {

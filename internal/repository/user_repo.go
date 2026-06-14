@@ -9,10 +9,12 @@ import (
 
 // UserUpdate 用户更新字段，nil 表示不更新。
 type UserUpdate struct {
-	Email    *string
-	Nickname *string
-	Password *string // 调用方需传入已哈希的密码
-	Role     *int
+	Email      *string
+	Nickname   *string
+	Password   *string // 调用方需传入已哈希的密码
+	Role       *int
+	CoverTheme *string
+	Motto      *string // nil 不更新；"" 清空；非空为座右铭内容
 }
 
 // UserRepository 用户数据访问接口。
@@ -34,4 +36,6 @@ type UserRepository interface {
 	FindByIDs(ctx context.Context, ids []uint) ([]model.User, error)
 	// FindByRoleGTE 查询角色 >= minRole 的所有用户。
 	FindByRoleGTE(ctx context.Context, minRole int) ([]model.User, error)
+	// FindByUsernames 按用户名列表批量查询用户。
+	FindByUsernames(ctx context.Context, usernames []string) ([]model.User, error)
 }

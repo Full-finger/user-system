@@ -22,4 +22,6 @@ type PostRepository interface {
 	IncrLikeCount(ctx context.Context, id uint) error
 	DecrLikeCount(ctx context.Context, id uint) error
 	IncrViewCount(ctx context.Context, id uint) error
+	// FindAdminPageByNodeIDs 管理后台按节点 ID 列表筛选帖子（版主只能看管辖节点的帖子）。
+	FindAdminPageByNodeIDs(ctx context.Context, keyword string, nodeIDs []uint, page, size int) ([]model.Post, int64, error)
 }

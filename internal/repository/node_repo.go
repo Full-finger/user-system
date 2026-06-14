@@ -10,6 +10,7 @@ import (
 type NodeRepository interface {
 	Create(ctx context.Context, node *model.Node) error
 	FindByID(ctx context.Context, id uint) (*model.Node, error)
+	FindByIDs(ctx context.Context, ids []uint) ([]model.Node, error)
 	FindBySlug(ctx context.Context, slug string) (*model.Node, error)
 	FindAll(ctx context.Context) ([]model.Node, error)
 	Update(ctx context.Context, id uint, upd NodeUpdate) error

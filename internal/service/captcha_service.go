@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -108,7 +109,7 @@ func (s *CaptchaService) incAttempts(ctx context.Context, key string) error {
 		s.log.Warn("设置 attempts TTL 失败", zap.Error(err))
 	}
 	if attempts > int64(s.cfg.MaxAttempts) {
-		return fmt.Errorf("exceeded")
+		return errors.New("exceeded")
 	}
 	return nil
 }

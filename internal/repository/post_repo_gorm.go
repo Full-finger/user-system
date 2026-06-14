@@ -150,3 +150,20 @@ func (r *postRepoGorm) IncrViewCount(ctx context.Context, id uint) error {
 	return r.db.WithContext(ctx).Model(&model.Post{}).Where("id = ?", id).
 		UpdateColumn("view_count", gorm.Expr("view_count + 1")).Error
 }
+
+func (r *postRepoGorm) FindAdminPageByNodeIDs(ctx context.Context, keyword string, nodeIDs []uint, page, size int) ([]model.Post, int64, error) {
+	var posts []model.Post
+	var total int64
+	db := r.db.WithContext(ctx).Where("node_id IN ?", nodeIDs)
+	if keyword != "" {
+		db = db.Where("title ILIKE ?", "%"+keyword+"%")
+	}
+	if err := db.Model(&model.Post{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset := (page - 1) * size
+	if err := db.Preload("User").Preload("Node").Order("created_at DESC").Offset(offset).Limit(size).Find(&posts).Error; err != nil {
+		return nil, 0, err
+	}
+	return posts, total, nil
+}

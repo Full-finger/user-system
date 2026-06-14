@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/full-finger/user-system/internal/apperror"
+	"github.com/full-finger/user-system/internal/avatar"
 	"github.com/full-finger/user-system/internal/auth"
 	"github.com/full-finger/user-system/internal/controller/param"
 	"github.com/full-finger/user-system/internal/service"
@@ -33,7 +34,7 @@ func (ctrl *NodeController) ListNodes(c echo.Context) error {
 	return success(c, param.NodeListResponse{Nodes: items})
 }
 
-// GetNode 获取单个节点。
+// GetNode 获取单个节点（含版主列表）。
 func (ctrl *NodeController) GetNode(c echo.Context) error {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -43,7 +44,21 @@ func (ctrl *NodeController) GetNode(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return success(c, param.ToNodeResponse(node))
+	// 查询版主列表
+	var mods []param.ModeratorInfo
+	users, _ := ctrl.nodeSvc.GetNodeModerators(c.Request().Context(), uint(id))
+	if len(users) > 0 {
+		mods = make([]param.ModeratorInfo, len(users))
+		for i, u := range users {
+			mods[i] = param.ModeratorInfo{
+				ID:        u.ID,
+				Username:  u.Username,
+				Nickname:  u.Nickname,
+				AvatarURL: avatar.AvatarURL(u.Email, u.Username),
+			}
+		}
+	}
+	return success(c, param.ToNodeResponseWithModerators(node, mods))
 }
 
 // ListNodePosts 按节点查看帖子，sort=time|replies。

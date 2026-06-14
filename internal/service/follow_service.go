@@ -16,12 +16,12 @@ import (
 type FollowService struct {
 	followRepo repository.FollowRepository
 	userRepo   repository.UserRepository
-	postRepo   repository.PostRepository
+	txRunner   TransactionRunner
 	log        *zap.Logger
 }
 
-func NewFollowService(followRepo repository.FollowRepository, userRepo repository.UserRepository, postRepo repository.PostRepository, log *zap.Logger) *FollowService {
-	return &FollowService{followRepo: followRepo, userRepo: userRepo, postRepo: postRepo, log: log}
+func NewFollowService(followRepo repository.FollowRepository, userRepo repository.UserRepository, txRunner TransactionRunner, log *zap.Logger) *FollowService {
+	return &FollowService{followRepo: followRepo, userRepo: userRepo, txRunner: txRunner, log: log}
 }
 
 // ToggleFollow 关注/取消关注，返回当前是否已关注。
@@ -47,22 +47,29 @@ func (s *FollowService) ToggleFollow(ctx context.Context, uc *auth.UserContext, 
 	}
 
 	if followed {
-		if err := s.followRepo.Delete(ctx, uc.UserID, followingID); err != nil {
+		if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+			return tx.Where("follower_id = ? AND following_id = ?", uc.UserID, followingID).Delete(&model.Follow{}).Error
+		}); err != nil {
 			s.log.Error("取消关注失败", zap.Error(err))
 			return false, apperror.Internal("取消关注失败")
 		}
 		return false, nil
 	}
 
-	if err := s.followRepo.Create(ctx, &model.Follow{FollowerID: uc.UserID, FollowingID: followingID}); err != nil {
+	if err := s.txRunner.RunInTransaction(ctx, func(tx *gorm.DB) error {
+		return tx.Create(&model.Follow{FollowerID: uc.UserID, FollowingID: followingID}).Error
+	}); err != nil {
 		s.log.Error("关注失败", zap.Error(err))
 		return false, apperror.Internal("关注失败")
 	}
 	return true, nil
 }
 
-// GetFollowers 获取某用户的粉丝列表。
+// GetFollowers 获取某用户的粉丝列表（仅本人可查）。
 func (s *FollowService) GetFollowers(ctx context.Context, uc *auth.UserContext, userID uint, page, size int) ([]model.Follow, int64, map[uint]bool, error) {
+	if uc.UserID != userID {
+		return nil, 0, nil, apperror.Forbidden("无权查看他人的粉丝列表")
+	}
 	follows, total, err := s.followRepo.FindFollowers(ctx, userID, page, size)
 	if err != nil {
 		s.log.Error("查询粉丝列表失败", zap.Error(err))
@@ -72,8 +79,11 @@ func (s *FollowService) GetFollowers(ctx context.Context, uc *auth.UserContext, 
 	return follows, total, followedMap, nil
 }
 
-// GetFollowings 获取某用户的关注列表。
+// GetFollowings 获取某用户的关注列表（仅本人可查）。
 func (s *FollowService) GetFollowings(ctx context.Context, uc *auth.UserContext, userID uint, page, size int) ([]model.Follow, int64, map[uint]bool, error) {
+	if uc.UserID != userID {
+		return nil, 0, nil, apperror.Forbidden("无权查看他人的关注列表")
+	}
 	follows, total, err := s.followRepo.FindFollowings(ctx, userID, page, size)
 	if err != nil {
 		s.log.Error("查询关注列表失败", zap.Error(err))
@@ -81,50 +91,6 @@ func (s *FollowService) GetFollowings(ctx context.Context, uc *auth.UserContext,
 	}
 	followedMap := s.buildFollowedMap(ctx, uc, followingIDs(follows))
 	return follows, total, followedMap, nil
-}
-
-// GetUserStats 获取用户的统计信息（帖子数、粉丝数、关注数）。
-func (s *FollowService) GetUserStats(ctx context.Context, userID uint) (postCount int64, followerCount int64, followingCount int64, err error) {
-	postCount, err = s.postRepo.CountByUserID(ctx, userID)
-	if err != nil {
-		s.log.Error("查询用户帖子数失败", zap.Error(err))
-		return 0, 0, 0, apperror.Internal("查询失败")
-	}
-	followerCount, err = s.followRepo.CountFollowers(ctx, userID)
-	if err != nil {
-		s.log.Error("查询粉丝数失败", zap.Error(err))
-		return 0, 0, 0, apperror.Internal("查询失败")
-	}
-	followingCount, err = s.followRepo.CountFollowings(ctx, userID)
-	if err != nil {
-		s.log.Error("查询关注数失败", zap.Error(err))
-		return 0, 0, 0, apperror.Internal("查询失败")
-	}
-	return postCount, followerCount, followingCount, nil
-}
-
-// GetUserProfile 获取用户资料+统计+关注状态。
-func (s *FollowService) GetUserProfile(ctx context.Context, uc *auth.UserContext, userID uint) (*model.User, int64, int64, int64, bool, error) {
-	user, err := s.userRepo.FindByID(ctx, userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, 0, 0, false, apperror.NotFound("用户不存在")
-		}
-		s.log.Error("查询用户失败", zap.Error(err))
-		return nil, 0, 0, 0, false, apperror.Internal("查询失败")
-	}
-	postCount, followerCount, followingCount, err := s.GetUserStats(ctx, userID)
-	if err != nil {
-		return nil, 0, 0, 0, false, err
-	}
-	followed := false
-	if !uc.IsGuest() && uc.UserID != userID {
-		followed, err = s.followRepo.Exists(ctx, uc.UserID, userID)
-		if err != nil {
-			s.log.Warn("查询关注状态失败", zap.Uint("userID", uc.UserID), zap.Uint("targetID", userID), zap.Error(err))
-		}
-	}
-	return user, postCount, followerCount, followingCount, followed, nil
 }
 
 // FollowingIDs 获取当前用户关注的所有用户ID。
@@ -179,7 +145,10 @@ func (s *FollowService) buildFollowedMap(ctx context.Context, uc *auth.UserConte
 	if uc.IsGuest() || len(ids) == 0 {
 		return nil
 	}
-	m, _ := s.FindFollowedUserIDs(ctx, uc, ids)
+	m, err := s.FindFollowedUserIDs(ctx, uc, ids)
+	if err != nil {
+		s.log.Warn("批量查询关注状态失败，降级返回空", zap.Error(err))
+	}
 	return m
 }
 
