@@ -142,6 +142,8 @@ STRUCT_SKIP='helpers\|transaction\|validate\|_input\|_test\|routes\|router\|boot
 
 for layer_dir in internal/controller internal/service; do
 	layer_name=$(echo "$layer_dir" | sed 's|internal/||' | sed 's/\b\(.\)/\u\1/')
+	# 收集该层所有 struct 定义（跨文件），用于识别同结构体方法分散在多文件的情况
+	all_structs=$(grep -rhoP 'type \K[A-Z][a-zA-Z0-9]*(?= struct)' "$ROOT_DIR/$layer_dir" --include='*.go' 2>/dev/null | sort -u || true)
 	while IFS= read -r f; do
 		fname=$(basename "$f" .go)
 		echo "$fname" | grep -qE "($STRUCT_SKIP)" && continue
@@ -165,7 +167,7 @@ for layer_dir in internal/controller internal/service; do
 			case "$method_name" in New*) continue ;; esac
 
 			receiver_type=$(echo "$mline" | sed -n 's/.*func [^)]*\* *\([A-Z][a-zA-Z0-9]*\).*/\1/p')
-			if [ -n "$receiver_type" ] && echo "$struct_names" | grep -q "$receiver_type"; then
+			if [ -n "$receiver_type" ] && echo "$all_structs" | grep -qxF "$receiver_type"; then
 				continue
 			fi
 
