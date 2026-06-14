@@ -1,0 +1,51 @@
+# ── 根目录 .dockerignore（后端镜像构建上下文）──────────────
+# 减少 build context 体积、避免把敏感信息/产物打进镜像
+
+# 版本控制
+.git
+.gitignore
+.gitattributes
+
+# IDE / 编辑器
+.vscode
+.idea
+*.swp
+.agent
+
+# 后端构建产物
+bin/
+user-system
+*.exe
+*.test
+*.out
+
+# 本地配置（含密钥，绝不进镜像）
+configs/config.yaml
+
+# 日志
+logs/
+
+# 前端（后端镜像不需要，前端有独立的 web/Dockerfile）
+web/node_modules
+web/dist
+
+# 部署产物（compose 数据目录、本地 compose 文件）
+deployments/postgres-data
+deployments/redis-data
+deployments/docker-compose.yml
+deployments/config.yaml
+deployments/init-scripts
+
+# 报告 / 文档产物
+docs/arch-report.md
+.semgrep-stderr.log
+
+# Docker 自身文件（避免循环）
+Dockerfile
+.dockerignore
+web/Dockerfile
+web/.dockerignore
+
+# 杂项
+Dockerfile.dev
+.air.toml

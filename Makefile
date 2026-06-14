@@ -32,7 +32,7 @@ endef
 # ── Phony 声明 ─────────────────────────────────────────────
 .PHONY: help run build dev init test lint fmt clean cleanall \
         web web-dev web-build web-clean web-lint \
-        docker-up docker-down docker-logs \
+        docker-build docker-app docker-web docker-up docker-down docker-logs \
         arch-check semgrep \
         all
 
@@ -106,16 +106,28 @@ web-lint: ## 前端代码检查
 	cd $(WEB_DIR) && npx eslint src/ --ext .js,.vue
 
 # ── Docker ──────────────────────────────────────────────────
-docker-up: ## 启动 Docker 基础设施 (PostgreSQL + Redis)
-	$(call log,启动 Docker 基础设施...)
-	docker compose -f $(COMPOSE_FILE) up -d
-	@printf "$(GREEN)  ✓ 服务已启动$(RESET)\n"
+docker-app: ## 构建后端镜像
+	$(call log,构建后端镜像...)
+	docker build -t $(APP_NAME)-app:latest .
 
-docker-down: ## 停止 Docker 基础设施
-	$(call log,停止 Docker 基础设施...)
+docker-web: ## 构建前端镜像
+	$(call log,构建前端镜像...)
+	docker build -t $(APP_NAME)-web:latest ./web
+
+docker-build: docker-app docker-web ## 构建全部镜像（后端 + 前端）
+
+docker-up: ## 启动全栈服务 (app + web + db + redis)，自动构建镜像
+	$(call log,启动 Docker 全栈服务...)
+	docker compose -f $(COMPOSE_FILE) up -d --build
+	@printf "$(GREEN)  ✓ 服务已启动$(RESET)\n"
+	@printf "$(YELLOW)  前端访问入口: http://localhost:8080$(RESET)\n"
+
+docker-down: ## 停止 Docker 全栈服务
+	$(call log,停止 Docker 全栈服务...)
 	docker compose -f $(COMPOSE_FILE) down
 
 docker-logs: ## 查看 Docker 日志
+	$(call log,查看 Docker 日志...)
 	docker compose -f $(COMPOSE_FILE) logs -f
 
 # ── 架构检查 ────────────────────────────────────────────────

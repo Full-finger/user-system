@@ -1,0 +1,22 @@
+# ── web/.dockerignore（前端镜像构建上下文）─────────────────
+# 前端 build context 为 web/ 目录，此文件控制其上下文体积
+
+node_modules/
+dist/
+npm-debug.log*
+.npm
+
+# 编辑器
+.vscode
+.idea
+*.swp
+
+# 不需要的配置
+.eslintrc.json
+.prettierrc
+.gitignore
+.gitattributes
+
+# Docker 自身
+Dockerfile
+.dockerignore

@@ -1,0 +1,88 @@
+# ── 容器化部署配置模板（配合 deployments/docker-compose.yml 使用）──
+# 用法：
+#   cp deployments/config.yaml.example deployments/config.yaml
+#   修改所有 CHANGE_ME_* 占位符为真实值
+#   make docker-up
+#
+# 此模板与本地开发的 configs/config.yaml.example 区别：
+#   - server.env = production（跳过 AutoMigrate，需提前建表）
+#   - database.host / redis.addr 使用 compose 服务名
+#   - cors_origins 留空（前端与 API 同源，经 nginx 统一入口，无需跨域）
+
+server:
+  env: "production"
+  port: ":1323"
+  # 前端经 nginx 反代与 /api 同源，通常无需配置 CORS。
+  # 若前端独立部署在其他域名，请填写该域名，例如：
+  # cors_origins:
+  #   - "https://your-domain.com"
+  cors_origins: []
+
+database:
+  host: db                # compose 服务名
+  user: CHANGE_ME_DB_USER
+  password: CHANGE_ME_DB_PASSWORD
+  dbname: CHANGE_ME_DB_NAME
+  port: 5432
+  sslmode: disable
+  timezone: Asia/Shanghai
+
+redis:
+  addr: "redis:6379"      # compose 服务名
+  password: "CHANGE_ME_REDIS_PASSWORD"
+  db: 0
+
+jwt:
+  secret: "CHANGE_ME_JWT_SECRET_AT_LEAST_16_CHARS"
+  expire: 24h
+
+smtp:
+  host: "smtp.example.com"
+  port: 465
+  username: "your-email@example.com"
+  password: "CHANGE_ME_SMTP_PASSWORD"
+  from: "your-email@example.com"
+  tls: true
+  auth: true
+
+captcha:
+  length: 6
+  type: "number"
+  expire: 5m
+  send_interval: 1m
+  max_attempts: 0
+
+rate_limit:
+  window: 1m
+  max_requests: 10
+
+guest_jwt:
+  secret: "CHANGE_ME_GUEST_JWT_SECRET_AT_LEAST_16_CHARS"
+  expire: 168h  # 7 天
+
+# 仅当数据库中不存在任何 admin 用户时自动创建，创建后再次启动不会重复创建
+# ⚠️ 首次登录后请立即修改密码
+admin:
+  username: "CHANGE_ME_ADMIN_USERNAME"
+  password: "CHANGE_ME_ADMIN_PASSWORD"
+  email: "admin@example.com"
+
+# 反垃圾评论配置
+antispam:
+  max_content_length: 5000              # 评论内容最大字符数
+  honeypot_field: "website"             # 蜜罐字段名（前后端动态匹配，JSON key）
+  difficulty: 4                         # PoW 难度（SHA256 前导零十六进制位数，越大越耗时）
+  blocked_keywords:                     # 屏蔽关键词列表
+    # - "赌博"
+    # - "代开发"
+  dup_window: 5m                        # 重复评论检测窗口
+  comment_interval: 30s                 # 同一用户两次评论最小间隔
+  challenge_limit: 10                   # challenge 接口每分钟限制次数（按 IP）
+
+log:
+  level: "info"
+  filename: "logs/app.log"
+  max_size: 100
+  max_backups: 30
+  max_age: 7
+  compress: true

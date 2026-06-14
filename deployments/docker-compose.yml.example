@@ -1,22 +1,106 @@
+# ── user-system 全栈编排（app + web + db + redis）────────────
+# 用法：
+#   cp deployments/docker-compose.yml.example deployments/docker-compose.yml
+#   cp deployments/config.yaml.example       deployments/config.yaml
+#   # 同时修改两个文件中的 CHANGE_ME_* 占位符（见下方警告）
+#   make docker-up
+#
+# 前端访问入口：http://localhost:8080 （nginx，反代 /api 到后端）
+# 后端 :1323、db :5432、redis :6379 仅在内部网络通信，默认不对外暴露。
+#
+# ⚠️ 重要：db/redis 的用户名/密码/库名在下面 compose 和 config.yaml 中各出现一次，
+#    两处必须完全一致，否则 app 容器会连不上数据库而退出（exit 1）。
+
 services:
+  # ── PostgreSQL ───────────────────────────────────────────
   db:
     image: postgres:16
     container_name: user-system-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: CHANGE_ME_DB_USER
       POSTGRES_PASSWORD: CHANGE_ME_DB_PASSWORD
       POSTGRES_DB: CHANGE_ME_DB_NAME
-    ports:
-      - "5432:5432"
+      TZ: Asia/Shanghai
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
+      - postgres-data:/var/lib/postgresql/data
+      # 如需初始化脚本，解开下行注释并把脚本放到 deployments/init-scripts/
+      # - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # 调试时如需从宿主机连接，解开下行注释
+    # ports:
+    #   - "5432:5432"
 
+  # ── Redis ────────────────────────────────────────────────
   redis:
     image: redis:7
     container_name: user-system-redis
-    command: redis-server --requirepass CHANGE_ME_REDIS_PASSWORD
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    command: redis-server --requirepass CHANGE_ME_REDIS_PASSWORD --appendonly yes
+    environment:
+      TZ: Asia/Shanghai
     volumes:
-      - ./redis-data:/data
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "CHANGE_ME_REDIS_PASSWORD", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    # ports:
+    #   - "6379:6379"
+
+  # ── 后端 API（Go/Echo）────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: user-system-app:latest
+    container_name: user-system-app
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      # 用容器版配置覆盖镜像内置的兜底配置（含真实密钥/DB 地址）
+      - ./config.yaml:/app/configs/config.yaml:ro
+      # 日志持久化（可选）
+      - app-logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 后端默认不对外暴露，仅 nginx 通过服务名 app:1323 访问
+    # 调试时可解开下行注释
+    # ports:
+    #   - "1323:1323"
+    networks:
+      - default
+
+  # ── 前端（nginx：静态托管 + 反代 /api）────────────────────
+  web:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    image: user-system-web:latest
+    container_name: user-system-web
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - default
+
+volumes:
+  postgres-data:
+  redis-data:
+  app-logs:
