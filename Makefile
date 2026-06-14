@@ -33,6 +33,7 @@ endef
 .PHONY: help run build dev init test lint fmt clean cleanall \
         web web-dev web-build web-clean web-lint \
         docker-up docker-down docker-logs \
+        arch-check semgrep \
         all
 
 # ── 默认目标 ────────────────────────────────────────────────
@@ -116,6 +117,15 @@ docker-down: ## 停止 Docker 基础设施
 
 docker-logs: ## 查看 Docker 日志
 	docker compose -f $(COMPOSE_FILE) logs -f
+
+# ── 架构检查 ────────────────────────────────────────────────
+arch-check: ## 分层架构合规性检查（Semgrep + Bash 混合工具链）
+	$(call log,运行分层架构合规性检查...)
+	@bash scripts/arch-check.sh
+
+semgrep: ## 仅运行 Semgrep 规则（不生成报告）
+	$(call log,运行 Semgrep 规则...)
+	@semgrep --config scripts/semgrep-rules/ --timeout 60
 
 # ── 清理 ────────────────────────────────────────────────────
 clean: ## 清理后端构建产物

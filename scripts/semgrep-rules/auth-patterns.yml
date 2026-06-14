@@ -1,0 +1,62 @@
+rules:
+  # ════════════════════════════════════════════════════════════
+  # B 类：鉴权模式检查
+  # 规则来源：docs/role-system.md §6 — Service 层鉴权模式
+  # ════════════════════════════════════════════════════════════
+
+  # ── B2: Service 写操作方法缺鉴权 ─────────────────────────
+  # 检查 Create*/Delete*/Update*/Toggle*/Admin*/Bind*/Appoint*/Remove* 方法
+  # 方法体内不应缺少 RequireRole / Role.Level / Role == / apperror.Forbidden
+  # 注意：此规则用 metavariable-regex 匹配写操作方法名前缀
+
+  - id: service-write-method-missing-auth
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: |
+          func ($RECV $TYPE) $METHOD(...) $RET {
+            ...
+          }
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: "^(Create|Delete|Update|Toggle|Admin|Bind|Appoint|Remove|Grant|Revoke|Set|Reset|Block|Ban|Mute|Promote|Demote|Transfer|Import|Export)[A-Z].*"
+      - pattern-not-regex: '(RequireRole|Role\.Level|apperror\.Forbidden|Role\s*==)'
+    message: "写操作方法缺少鉴权检查（RequireRole / Role.Level / apperror.Forbidden），可能是安全漏洞"
+
+  # ── B1: Service Guest 静默返回空数据 ─────────────────────
+  - id: service-guest-silent-return-nil
+    languages: [go]
+    severity: WARNING
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: |
+          if $UC.IsGuest() {
+            ...
+            return nil, $ERR
+          }
+      - pattern-not: |
+          if $UC.IsGuest() {
+            ...
+            return nil, apperror.$CODE(...)
+          }
+    message: "Guest 静默返回 nil — 如果涉及游客正常逻辑可能是误报，确认是否为公开接口的预期行为"
+
+  # ── B3: Controller Guest 后直接 return c.JSON ────────────
+  - id: controller-guest-silent-json-return
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/controller/**/*.go"]
+      exclude: ["*_test.go", "**/param/**"]
+    patterns:
+      - pattern: |
+          if $UC.IsGuest() {
+            ...
+            return $C.JSON(...)
+          }
+    message: "Controller 中 Guest 静默返回空数据，绕过 Service 层鉴权，应将鉴权逻辑移入 Service 层"

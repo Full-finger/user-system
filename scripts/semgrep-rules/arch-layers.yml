@@ -1,0 +1,192 @@
+rules:
+  # ════════════════════════════════════════════════════════════
+  # A 类：分层架构违规
+  # 规则来源：docs/role-system.md §6 — Service 层鉴权模式
+  # 核心原则：中间件负责"你是谁"，Service 负责"你能看什么/做什么"
+  # ════════════════════════════════════════════════════════════
+
+  # ── Controller 禁止鉴权逻辑 ──────────────────────────────
+  - id: controller-no-require-role
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/controller/**/*.go"]
+      exclude: ["*_test.go", "**/param/**"]
+    patterns:
+      - pattern: $UC.RequireRole(...)
+    message: "Controller 不应包含 RequireRole 鉴权调用，将鉴权逻辑移入对应 Service 方法"
+
+  - id: controller-no-role-level-compare
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/controller/**/*.go"]
+      exclude: ["*_test.go", "**/param/**"]
+    patterns:
+      - pattern: $UC.Role.Level()
+    message: "Controller 不应进行角色级别比较，将角色判断移入 Service 层"
+
+  - id: controller-no-role-constant-compare
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/controller/**/*.go"]
+      exclude: ["*_test.go", "**/param/**"]
+    patterns:
+      - pattern: $UC.Role == auth.$ROLE
+    message: "Controller 不应直接比较角色常量，将角色判断移入 Service 层"
+
+  - id: controller-no-forbidden
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/controller/**/*.go"]
+      exclude: ["*_test.go", "**/param/**"]
+    patterns:
+      - pattern: apperror.Forbidden(...)
+    message: "Controller 不应直接返回 Forbidden 错误，将权限判断移入 Service 层"
+
+  # ── Service 禁止 HTTP 依赖 ────────────────────────────────
+  - id: service-no-echo-context
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: echo.Context
+    message: "Service 不应引用 echo.Context（HTTP 依赖），Service 应接收 context.Context 和基本类型参数"
+
+  # ── Repository 禁止鉴权 & 认证上下文 ─────────────────────
+  - id: repository-no-auth-usercontext
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/repository/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: auth.UserContext
+    message: "Repository 不应引用 auth.UserContext，Repository 应只接收基本类型参数（如 userID uint）"
+
+  - id: repository-no-require-role
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/repository/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: $X.RequireRole(...)
+    message: "Repository 不应包含鉴权逻辑，鉴权应在 Service 层完成"
+
+  - id: repository-no-forbidden
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/repository/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: apperror.Forbidden(...)
+    message: "Repository 不应返回 Forbidden 错误，权限错误应在 Service 层返回"
+
+  # ── Middleware 只做身份解析，不做权限拦截 ────────────────
+  - id: middleware-no-require-role
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/middleware/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: $X.RequireRole(...)
+    message: "Middleware 只做身份解析，不做权限拦截，权限判断应在 Service 层完成"
+
+  - id: middleware-no-forbidden
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/middleware/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: apperror.Forbidden(...)
+    message: "Middleware 不应返回 Forbidden 错误，权限拦截应在 Service 层完成"
+
+  # ── Router 只做路由注册 ──────────────────────────────────
+  - id: router-no-require-role
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/router/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: $X.RequireRole(...)
+    message: "Router 不应包含鉴权逻辑，路由层只做注册，权限在 Service 层判断"
+
+  - id: router-no-auth-role
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/router/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: auth.Role
+    message: "Router 不应引用 auth.Role 类型，路由层只做注册，不需要知道角色类型"
+
+  # ════════════════════════════════════════════════════════════
+  # F 类：新增架构规则
+  # ════════════════════════════════════════════════════════════
+
+  # ── F1: Service 不应引用 net/http 包 ──────────────────────
+  - id: service-no-http-package
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              import "net/http"
+          - pattern: |
+              import (
+                ...
+                "net/http"
+                ...
+              )
+    message: "Service 层不应引用 net/http 包，应使用 apperror 统一错误体系"
+
+  # ── F2: Service 不应使用 fmt.Errorf 创建错误 ─────────────
+  - id: service-no-fmt-errorf
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: fmt.Errorf(...)
+    message: "Service 层不应使用 fmt.Errorf 创建错误，应使用 apperror 统一错误体系（如 apperror.Internal / apperror.BadRequest）"
+
+  # ── F4: Repository 接口不应返回 *gorm.DB ─────────────────
+  - id: repository-interface-no-gorm-return
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/repository/*.go"]
+      exclude: ["*_gorm.go", "*_test.go"]
+    patterns:
+      - pattern: func ($REPO $TYPE) $METHOD(...) *gorm.DB
+    message: "Repository 接口不应返回 *gorm.DB，应返回 model 类型或基本类型，保持抽象层不被 GORM 泄漏"
+
+  # ── F5: Service 不应直接持有 *gorm.DB 字段 ───────────────
+  - id: service-no-gorm-field
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go", "**/transaction.go"]
+    patterns:
+      - pattern: |
+          type $SERVICE struct {
+            ...
+            $FIELD *gorm.DB
+            ...
+          }
+    message: "Service 不应直接持有 *gorm.DB 字段，应通过 Repository 接口访问数据"

@@ -31,11 +31,26 @@ make web-dev       # 启动开发服务器（默认 :5173）
 make help          # 查看所有可用命令
 make dev           # 热重载开发模式（需要 air）
 make test          # 运行测试
-make lint          # 代码检查
+make lint          # 代码检查（go vet + gofmt）
+make arch-check    # 分层架构合规性检查（Semgrep + Bash）
+make semgrep       # 仅运行 Semgrep 规则
 make build         # 编译后端
 make all           # 完整构建（lint + 后端 + 前端）
 make cleanall      # 清理全部构建产物
 ```
+
+## 架构合规性检查
+
+```bash
+make arch-check    # 生成 docs/arch-report.md 报告
+```
+
+工具链分三层：
+- **Layer 1 — Semgrep**：AST 级模式匹配（`scripts/semgrep-rules/*.yml`）
+- **Layer 2 — Bash**：结构性检查（返回值计数、文件名匹配、多写事务等）
+- **Layer 3 — go vet**：编译器级检查（`make lint`）
+
+> 依赖：`pip install semgrep` + `sudo apt install jq`
 
 ## API 文档
 

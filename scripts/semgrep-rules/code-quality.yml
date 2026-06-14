@@ -1,0 +1,80 @@
+rules:
+  # ════════════════════════════════════════════════════════════
+  # D 类：数据一致性检查（D1 — 事务内未使用 tx）
+  # ════════════════════════════════════════════════════════════
+
+  # ── D1: RunInTransaction 闭包内使用 repo(ctx,...) 而非 tx ──
+  # 意图：在事务闭包内调用 s.xxxRepo.xxx(ctx,...) 绕过了事务
+  - id: service-tx-not-using-tx-var
+    languages: [go]
+    severity: ERROR
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go", "**/transaction.go"]
+    patterns:
+      - pattern-inside: |
+          $TX.RunInTransaction($CTX, func(tx *gorm.DB) error {
+            ...
+          })
+      - pattern: $S.$REPO.$METHOD(ctx, ...)
+      - pattern-not: $S.$REPO.RunInTransaction(...)
+    message: "RunInTransaction 闭包内使用 repo(ctx,...) 而非 tx，事务不完整 — 改用 tx 参数直接操作数据库"
+
+  # ════════════════════════════════════════════════════════════
+  # E 类：代码质量检查
+  # ════════════════════════════════════════════════════════════
+
+  # ── E2: log.Error 后未返回错误 ────────────────────────────
+  - id: service-log-error-no-return
+    languages: [go]
+    severity: WARNING
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: $S.log.Error($ARGS)
+      - pattern-not-inside: |
+          if err != nil {
+            ...
+            $S.log.Error($ARGS)
+            ...
+            return $RET
+          }
+    message: "log.Error 后未返回错误，错误可能被静默吞掉 — 在 log.Error 后添加 return apperror.Internal(...) 或 return err"
+
+  # ── E3: var _ = 死代码 / hack 模式 ────────────────────────
+  - id: dead-code-var-underscore
+    languages: [go]
+    severity: INFO
+    paths:
+      include:
+        - "/internal/controller/**/*.go"
+        - "/internal/service/**/*.go"
+        - "/internal/repository/**/*.go"
+        - "/internal/middleware/**/*.go"
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern: var _ = $X
+      - pattern-not: var _ $I = (*$T)(nil)
+    message: "var _ = 赋值可能是无意义引用或 import hack — 删除此行，或在正确位置使用该类型"
+
+  # ════════════════════════════════════════════════════════════
+  # F 类：新增代码质量规则
+  # ════════════════════════════════════════════════════════════
+
+  # ── F3: Service 中 context.Background() / context.TODO() ──
+  # 异步 goroutine（go $F(...)）内使用独立 context 是正确做法，故排除。
+  - id: service-no-context-background
+    languages: [go]
+    severity: WARNING
+    paths:
+      include: ["/internal/service/**/*.go"]
+      exclude: ["*_test.go"]
+    patterns:
+      - pattern-either:
+          - pattern: context.Background()
+          - pattern: context.TODO()
+      - pattern-not-inside: |
+          go $F(...)
+    message: "Service 中使用 context.Background()/context.TODO() 可能丢失取消传播 — 确认是否为异步任务的预期行为，否则应传递上游 context"
+

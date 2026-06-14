@@ -7,3 +7,5 @@
 /deployments/docker-compose.yml
 .agent
 /logs
+/docs/arch-report.md
+/.semgrep-stderr.log
